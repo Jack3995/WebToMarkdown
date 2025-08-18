@@ -14,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
+// Экран настроек с выбором способа сохранения: спрашивать или фиксированная папка
 @Composable
 fun SettingsScreen(
     initialPath: String?,
@@ -37,12 +38,8 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(8.dp))
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .fillMaxWidth()
-                .selectable(
-                    selected = selectedOption == 0,
-                    onClick = { selectedOption = 0 }
-                )
+            modifier = Modifier.fillMaxWidth()
+                .selectable(selected = selectedOption == 0 , onClick = { selectedOption = 0 })
                 .padding(8.dp)
         ) {
             RadioButton(selected = selectedOption == 0, onClick = { selectedOption = 0 })
@@ -51,12 +48,8 @@ fun SettingsScreen(
         }
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .fillMaxWidth()
-                .selectable(
-                    selected = selectedOption == 1,
-                    onClick = { selectedOption = 1 }
-                )
+            modifier = Modifier.fillMaxWidth()
+                .selectable(selected = selectedOption == 1 , onClick = { selectedOption = 1 })
                 .padding(8.dp)
         ) {
             RadioButton(selected = selectedOption == 1, onClick = { selectedOption = 1 })
@@ -72,7 +65,9 @@ fun SettingsScreen(
                 label = { Text("Выбранный путь") },
                 readOnly = true,
                 trailingIcon = {
-                    IconButton(onClick = { folderPickerLauncher.launch(null) }) {
+                    IconButton(
+                        onClick = { folderPickerLauncher.launch(null) }
+                    ) {
                         Icon(Icons.Filled.FolderOpen, contentDescription = "Выбрать папку")
                     }
                 }

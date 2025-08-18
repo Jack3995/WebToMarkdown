@@ -3,12 +3,9 @@ package com.jack3995.webtomarkdown
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
+import com.jack3995.webtomarkdown.screens.MainScreen
 import com.jack3995.webtomarkdown.screens.SettingsScreen
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -21,34 +18,45 @@ import java.io.IOException
 
 class MainActivity : ComponentActivity() {
 
+    // Перечисление экранов приложения для навигации
     enum class Screen {
-        Main, Settings
+        Main,
+        Settings
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         setContent {
+            // Хранение текущего экрана
             var currentScreen by remember { mutableStateOf(Screen.Main) }
+            // Путь к выбранной папке для сохранения, nullable
             var savedFolderPath by rememberSaveable { mutableStateOf<String?>(null) }
+            // Флаг "спрашивать ли каждый раз"
             var askEveryTime by rememberSaveable { mutableStateOf(true) }
+            // Текущее значение URL, введённого пользователем
             val urlState = remember { mutableStateOf("") }
 
+            // Навигация между экранами
             when (currentScreen) {
                 Screen.Main -> MainScreen(
                     urlState = urlState.value,
                     onUrlChange = { urlState.value = it },
                     onSaveClick = {
                         if (urlState.value.isEmpty()) {
+                            // Отладочная печать ошибки пустого URL
                             println("Ошибка: Введите URL")
                         } else {
+                            // Начать скачивание и сохранение markdown
                             startDownloadAndSave(urlState.value)
                         }
                     },
+                    // Переход к экрану настроек
                     onOpenSettings = { currentScreen = Screen.Settings }
                 )
                 Screen.Settings -> SettingsScreen(
                     initialPath = savedFolderPath,
+                    // Сохранение настроек и возврат к главному экрану
                     onSave = { askEvery, path ->
                         askEveryTime = askEvery
                         savedFolderPath = path
@@ -59,16 +67,20 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // Функция для скачивания страницы и сохранения как markdown - запускается в фоновом потоке
     private fun startDownloadAndSave(url: String) {
         println("**DEBUG**: startDownloadAndSave запущена")
+
         CoroutineScope(Dispatchers.IO).launch {
             println("**DEBUG**: Корутин стартует")
             try {
                 println("Будем сохранять: [$url]($url)")
+
                 val html = downloadWebPage(url)
                 val markdown = convertHtmlToMarkdown(html)
                 println("**DEBUG**: Markdown сформирован:\n$markdown")
                 saveToFile("page_${System.currentTimeMillis()}.md", markdown)
+
                 println("✅ Успешно сохранено!")
             } catch (e: Exception) {
                 println("**ERROR**: Исключение: ${e::class.java.name} ${e.message}")
@@ -77,22 +89,28 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // Сохраняет строку content в файл с именем fileName во внутреннюю папку приложения
     private fun saveToFile(fileName: String, content: String) {
         val dir = File(getExternalFilesDir(null), "WebToMarkdown")
         if (!dir.exists()) dir.mkdirs()
+
         val file = File(dir, fileName)
         file.writeText(content)
         println("📁 Файл сохранён: ${file.absolutePath}")
     }
 
+    // Скачивает HTML-страницу по URL (в корутине)
     private suspend fun downloadWebPage(url: String): String {
         val client = OkHttpClient()
         val request = Request.Builder().url(url).build()
         val response = client.newCall(request).execute()
+
         if (!response.isSuccessful) throw IOException("Ошибка HTTP ${response.code}")
+
         return response.body?.string() ?: throw IOException("Пустой ответ")
     }
 
+    // Конвертирует HTML в markdown используя Jsoup
     private fun convertHtmlToMarkdown(html: String): String {
         return try {
             val doc = Jsoup.parse(html)
@@ -113,6 +131,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // Рекурсивная конвертация элементов HTML в markdown
     private fun elementToMarkdown(element: org.jsoup.nodes.Element): String {
         return when (element.tagName().lowercase()) {
             "h1" -> "# ${element.text()}"
@@ -131,30 +150,6 @@ class MainActivity : ComponentActivity() {
                 element.children().joinToString("\n") { elementToMarkdown(it) }
             else
                 element.text()
-        }
-    }
-}
-
-@Composable
-fun MainScreen(
-    urlState: String,
-    onUrlChange: (String) -> Unit,
-    onSaveClick: () -> Unit,
-    onOpenSettings: () -> Unit
-) {
-    Column(modifier = Modifier.padding(16.dp)) {
-        TextField(
-            value = urlState,
-            onValueChange = onUrlChange,
-            label = { Text("Введите URL сайта") }
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Button(onClick = onSaveClick) {
-            Text("Сохранить в Markdown")
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        Button(onClick = onOpenSettings) {
-            Text("Настройки")
         }
     }
 }
