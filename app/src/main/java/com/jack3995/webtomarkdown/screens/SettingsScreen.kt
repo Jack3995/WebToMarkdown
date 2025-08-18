@@ -14,18 +14,27 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.jack3995.webtomarkdown.FileNameOption
+import com.jack3995.webtomarkdown.SaveLocationOption
 
 @Composable
 fun SettingsScreen(
     initialPath: String?,
     initialFileNameOption: FileNameOption,
+    initialSaveLocationOption: SaveLocationOption,
     onSave: (
         askEveryTime: Boolean,
         savedPath: String?,
-        fileNameOption: FileNameOption
+        fileNameOption: FileNameOption,
+        saveLocationOption: SaveLocationOption
     ) -> Unit
 ) {
-    var selectedOption by rememberSaveable { mutableStateOf(if (initialPath.isNullOrEmpty()) 0 else 1) }
+    var selectedOption by rememberSaveable { mutableStateOf(
+        when(initialSaveLocationOption) {
+            SaveLocationOption.ASK_EVERY_TIME -> 0
+            SaveLocationOption.DOWNLOADS -> 1
+            SaveLocationOption.CUSTOM_FOLDER -> 2
+        }
+    ) }
     var folderPath by rememberSaveable { mutableStateOf(initialPath ?: "") }
     var selectedFileNameOption by rememberSaveable { mutableStateOf(initialFileNameOption) }
 
@@ -34,14 +43,15 @@ fun SettingsScreen(
         onResult = { uri: Uri? ->
             uri?.let {
                 folderPath = it.toString()
-                selectedOption = 1
+                selectedOption = 2
             }
         }
     )
 
     Column(modifier = Modifier.padding(16.dp)) {
-        Text("Выберите способ сохранения файлов:", style = MaterialTheme.typography.titleMedium)
+        Text("Место сохранения заметки:", style = MaterialTheme.typography.titleMedium)
         Spacer(modifier = Modifier.height(8.dp))
+
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
@@ -60,9 +70,20 @@ fun SettingsScreen(
         ) {
             RadioButton(selected = selectedOption == 1, onClick = { selectedOption = 1 })
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Сохранять в указанную папку:")
+            Text("Папка «Загрузки»")
         }
-        if (selectedOption == 1) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
+                .selectable(selected = selectedOption == 2, onClick = { selectedOption = 2 })
+                .padding(8.dp)
+        ) {
+            RadioButton(selected = selectedOption == 2, onClick = { selectedOption = 2 })
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("В указанную папку")
+        }
+
+        if (selectedOption == 2) {
             Spacer(modifier = Modifier.height(8.dp))
             OutlinedTextField(
                 value = folderPath,
@@ -79,7 +100,7 @@ fun SettingsScreen(
         }
 
         Spacer(modifier = Modifier.height(16.dp))
-        Text("Выберите вариант наименования файла:", style = MaterialTheme.typography.titleMedium)
+        Text("Вариант наименования файла:", style = MaterialTheme.typography.titleMedium)
         Spacer(modifier = Modifier.height(8.dp))
         Column {
             FileNameOption.values().forEach { option ->
@@ -110,7 +131,13 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
         Button(onClick = {
-            onSave(selectedOption == 0, if (selectedOption == 1) folderPath else null, selectedFileNameOption)
+            val saveLoc = when(selectedOption) {
+                0 -> SaveLocationOption.ASK_EVERY_TIME
+                1 -> SaveLocationOption.DOWNLOADS
+                2 -> SaveLocationOption.CUSTOM_FOLDER
+                else -> SaveLocationOption.ASK_EVERY_TIME
+            }
+            onSave(selectedOption == 0, if (selectedOption == 2) folderPath else null, selectedFileNameOption, saveLoc)
         }) {
             Text("Сохранить настройки")
         }

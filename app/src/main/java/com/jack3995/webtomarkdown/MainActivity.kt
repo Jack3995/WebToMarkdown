@@ -1,10 +1,15 @@
 package com.jack3995.webtomarkdown
 
+import android.content.Context
+import android.net.Uri
 import android.os.Bundle
+import android.os.Environment
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.documentfile.provider.DocumentFile
 import com.jack3995.webtomarkdown.screens.MainScreen
 import com.jack3995.webtomarkdown.screens.SettingsScreen
 import kotlinx.coroutines.CoroutineScope
@@ -16,8 +21,6 @@ import org.jsoup.Jsoup
 import java.io.File
 import java.io.IOException
 
-import com.jack3995.webtomarkdown.FileNameOption
-
 class MainActivity : ComponentActivity() {
 
     enum class Screen {
@@ -25,17 +28,26 @@ class MainActivity : ComponentActivity() {
         Settings
     }
 
+    private var pendingSaveCallback: ((Uri?) -> Unit)? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Лаунчер для выбора папки через SAF
+        val folderPickerLauncher = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
+            pendingSaveCallback?.invoke(uri)
+        }
 
         setContent {
             var currentScreen by remember { mutableStateOf(Screen.Main) }
             var savedFolderPath by rememberSaveable { mutableStateOf<String?>(null) }
-            var askEveryTime by rememberSaveable { mutableStateOf(true) }
+            var lastCustomFolderUri by rememberSaveable { mutableStateOf<String?>(null) }
             val urlState = remember { mutableStateOf("") }
             var fileNameOption by rememberSaveable { mutableStateOf(FileNameOption.DEFAULT_NAME) }
+            var saveLocationOption by rememberSaveable { mutableStateOf(SaveLocationOption.ASK_EVERY_TIME) }
             var notePreview by remember { mutableStateOf("") }
             var fileNameInput by remember { mutableStateOf("") }
+            val context = this
 
             fun processUrl() {
                 val url = urlState.value
@@ -65,11 +77,56 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
+            fun saveNoteToSAF(folderUri: Uri, fileName: String, content: String) {
+                val pickedDir = DocumentFile.fromTreeUri(context, folderUri)
+                val newFile = pickedDir?.createFile("text/markdown", fileName)
+                if (newFile != null) {
+                    context.contentResolver.openOutputStream(newFile.uri)?.use { out ->
+                        out.write(content.toByteArray())
+                    }
+                    println("📁 Файл сохранён через SAF в: ${newFile.uri}")
+                } else {
+                    println("❗ Ошибка создания файла в выбранной директории")
+                }
+            }
+
             fun saveNote() {
                 val fileName = fileNameInput.ifBlank {
                     "page_${System.currentTimeMillis()}.md"
                 }
-                saveToFile(fileName, notePreview)
+
+                when (saveLocationOption) {
+                    SaveLocationOption.ASK_EVERY_TIME -> {
+                        pendingSaveCallback = { folderUri ->
+                            if (folderUri != null) {
+                                saveNoteToSAF(folderUri, fileName, notePreview)
+                            } else {
+                                println("Папка не выбрана, сохранения не будет.")
+                            }
+                        }
+                        folderPickerLauncher.launch(null)
+                    }
+                    SaveLocationOption.DOWNLOADS -> {
+                        val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                        saveToFileCustomDir(downloadsDir, fileName, notePreview)
+                    }
+                    SaveLocationOption.CUSTOM_FOLDER -> {
+                        if (!lastCustomFolderUri.isNullOrBlank()) {
+                            val uri = Uri.parse(lastCustomFolderUri)
+                            saveNoteToSAF(uri, fileName, notePreview)
+                        } else {
+                            pendingSaveCallback = { folderUri ->
+                                if (folderUri != null) {
+                                    lastCustomFolderUri = folderUri.toString()
+                                    saveNoteToSAF(folderUri, fileName, notePreview)
+                                } else {
+                                    println("Папка не выбрана, сохранения не будет.")
+                                }
+                            }
+                            folderPickerLauncher.launch(null)
+                        }
+                    }
+                }
             }
 
             when (currentScreen) {
@@ -86,11 +143,15 @@ class MainActivity : ComponentActivity() {
                 Screen.Settings -> SettingsScreen(
                     initialPath = savedFolderPath,
                     initialFileNameOption = fileNameOption,
-                    onSave = { askEvery, path, option ->
-                        askEveryTime = askEvery
+                    initialSaveLocationOption = saveLocationOption,
+                    onSave = { askEvery, path, option, locationOption ->
                         savedFolderPath = path
                         fileNameOption = option
+                        saveLocationOption = locationOption
                         currentScreen = Screen.Main
+                        if (locationOption == SaveLocationOption.CUSTOM_FOLDER && !path.isNullOrBlank()) {
+                            lastCustomFolderUri = path
+                        }
                     }
                 )
             }
@@ -103,6 +164,13 @@ class MainActivity : ComponentActivity() {
         val file = File(dir, fileName)
         file.writeText(content)
         println("📁 Файл сохранён: ${file.absolutePath}")
+    }
+
+    private fun saveToFileCustomDir(dir: File, fileName: String, content: String) {
+        if (!dir.exists()) dir.mkdirs()
+        val file = File(dir, fileName)
+        file.writeText(content)
+        println("📁 Файл сохранён в папку Загрузки: ${file.absolutePath}")
     }
 
     private suspend fun downloadWebPage(url: String): String {

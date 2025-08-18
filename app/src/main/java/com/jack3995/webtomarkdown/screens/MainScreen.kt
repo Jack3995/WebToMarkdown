@@ -7,7 +7,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
@@ -85,9 +84,9 @@ fun MainScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f)  // Занимает всё оставшееся место в колонке
+                    .weight(1f)
                     .padding(8.dp)
-                    .verticalScroll(rememberScrollState()) // Позволяет прокрутку предпросмотра
+                    .verticalScroll(rememberScrollState())
             ) {
                 Text(
                     text = notePreview,
