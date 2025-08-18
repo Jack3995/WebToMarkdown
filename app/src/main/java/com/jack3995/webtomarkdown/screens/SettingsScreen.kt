@@ -13,15 +13,21 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.jack3995.webtomarkdown.FileNameOption
 
-// Экран настроек с выбором способа сохранения: спрашивать или фиксированная папка
 @Composable
 fun SettingsScreen(
     initialPath: String?,
-    onSave: (askEveryTime: Boolean, savedPath: String?) -> Unit
+    initialFileNameOption: FileNameOption,
+    onSave: (
+        askEveryTime: Boolean,
+        savedPath: String?,
+        fileNameOption: FileNameOption
+    ) -> Unit
 ) {
     var selectedOption by rememberSaveable { mutableStateOf(if (initialPath.isNullOrEmpty()) 0 else 1) }
     var folderPath by rememberSaveable { mutableStateOf(initialPath ?: "") }
+    var selectedFileNameOption by rememberSaveable { mutableStateOf(initialFileNameOption) }
 
     val folderPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree(),
@@ -39,7 +45,7 @@ fun SettingsScreen(
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
-                .selectable(selected = selectedOption == 0 , onClick = { selectedOption = 0 })
+                .selectable(selected = selectedOption == 0, onClick = { selectedOption = 0 })
                 .padding(8.dp)
         ) {
             RadioButton(selected = selectedOption == 0, onClick = { selectedOption = 0 })
@@ -49,7 +55,7 @@ fun SettingsScreen(
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
-                .selectable(selected = selectedOption == 1 , onClick = { selectedOption = 1 })
+                .selectable(selected = selectedOption == 1, onClick = { selectedOption = 1 })
                 .padding(8.dp)
         ) {
             RadioButton(selected = selectedOption == 1, onClick = { selectedOption = 1 })
@@ -65,17 +71,46 @@ fun SettingsScreen(
                 label = { Text("Выбранный путь") },
                 readOnly = true,
                 trailingIcon = {
-                    IconButton(
-                        onClick = { folderPickerLauncher.launch(null) }
-                    ) {
+                    IconButton(onClick = { folderPickerLauncher.launch(null) }) {
                         Icon(Icons.Filled.FolderOpen, contentDescription = "Выбрать папку")
                     }
                 }
             )
         }
+
         Spacer(modifier = Modifier.height(16.dp))
+        Text("Выберите вариант наименования файла:", style = MaterialTheme.typography.titleMedium)
+        Spacer(modifier = Modifier.height(8.dp))
+        Column {
+            FileNameOption.values().forEach { option ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                        .selectable(
+                            selected = selectedFileNameOption == option,
+                            onClick = { selectedFileNameOption = option }
+                        )
+                        .padding(8.dp)
+                ) {
+                    RadioButton(
+                        selected = selectedFileNameOption == option,
+                        onClick = { selectedFileNameOption = option }
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = when(option) {
+                            FileNameOption.ASK_EVERY_TIME -> "Спрашивать каждый раз"
+                            FileNameOption.DEFAULT_NAME -> "По умолчанию (текущее имя)"
+                            FileNameOption.PAGE_TITLE -> "Имя страницы (заголовок сайта)"
+                        }
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
         Button(onClick = {
-            onSave(selectedOption == 0, if (selectedOption == 1) folderPath else null)
+            onSave(selectedOption == 0, if (selectedOption == 1) folderPath else null, selectedFileNameOption)
         }) {
             Text("Сохранить настройки")
         }

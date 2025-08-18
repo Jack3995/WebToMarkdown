@@ -16,9 +16,10 @@ import org.jsoup.Jsoup
 import java.io.File
 import java.io.IOException
 
+import com.jack3995.webtomarkdown.FileNameOption
+
 class MainActivity : ComponentActivity() {
 
-    // Перечисление экранов приложения для навигации
     enum class Screen {
         Main,
         Settings
@@ -28,38 +29,67 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         setContent {
-            // Хранение текущего экрана
             var currentScreen by remember { mutableStateOf(Screen.Main) }
-            // Путь к выбранной папке для сохранения, nullable
             var savedFolderPath by rememberSaveable { mutableStateOf<String?>(null) }
-            // Флаг "спрашивать ли каждый раз"
             var askEveryTime by rememberSaveable { mutableStateOf(true) }
-            // Текущее значение URL, введённого пользователем
             val urlState = remember { mutableStateOf("") }
+            var fileNameOption by rememberSaveable { mutableStateOf(FileNameOption.DEFAULT_NAME) }
+            var notePreview by remember { mutableStateOf("") }
+            var fileNameInput by remember { mutableStateOf("") }
 
-            // Навигация между экранами
+            fun processUrl() {
+                val url = urlState.value
+                if (url.isEmpty()) {
+                    notePreview = ""
+                    fileNameInput = ""
+                    println("Ошибка: Введите URL")
+                } else {
+                    CoroutineScope(Dispatchers.IO).launch {
+                        try {
+                            val html = downloadWebPage(url)
+                            val markdown = convertHtmlToMarkdown(html)
+                            notePreview = markdown
+                            fileNameInput = when (fileNameOption) {
+                                FileNameOption.ASK_EVERY_TIME -> ""
+                                FileNameOption.DEFAULT_NAME -> "page_${System.currentTimeMillis()}.md"
+                                FileNameOption.PAGE_TITLE -> {
+                                    val title = extractTitleFromHtml(html)
+                                    if (title.isNullOrBlank()) "page_${System.currentTimeMillis()}.md" else sanitizeFileName(title) + ".md"
+                                }
+                            }
+                        } catch (e: Exception) {
+                            notePreview = "Ошибка загрузки страницы: ${e.message}"
+                            fileNameInput = ""
+                        }
+                    }
+                }
+            }
+
+            fun saveNote() {
+                val fileName = fileNameInput.ifBlank {
+                    "page_${System.currentTimeMillis()}.md"
+                }
+                saveToFile(fileName, notePreview)
+            }
+
             when (currentScreen) {
                 Screen.Main -> MainScreen(
                     urlState = urlState.value,
                     onUrlChange = { urlState.value = it },
-                    onSaveClick = {
-                        if (urlState.value.isEmpty()) {
-                            // Отладочная печать ошибки пустого URL
-                            println("Ошибка: Введите URL")
-                        } else {
-                            // Начать скачивание и сохранение markdown
-                            startDownloadAndSave(urlState.value)
-                        }
-                    },
-                    // Переход к экрану настроек
-                    onOpenSettings = { currentScreen = Screen.Settings }
+                    onProcessClick = { processUrl() },
+                    onSaveClick = { saveNote() },
+                    onOpenSettings = { currentScreen = Screen.Settings },
+                    fileNameInput = fileNameInput,
+                    onFileNameInputChange = { fileNameInput = it },
+                    notePreview = notePreview
                 )
                 Screen.Settings -> SettingsScreen(
                     initialPath = savedFolderPath,
-                    // Сохранение настроек и возврат к главному экрану
-                    onSave = { askEvery, path ->
+                    initialFileNameOption = fileNameOption,
+                    onSave = { askEvery, path, option ->
                         askEveryTime = askEvery
                         savedFolderPath = path
+                        fileNameOption = option
                         currentScreen = Screen.Main
                     }
                 )
@@ -67,50 +97,22 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    // Функция для скачивания страницы и сохранения как markdown - запускается в фоновом потоке
-    private fun startDownloadAndSave(url: String) {
-        println("**DEBUG**: startDownloadAndSave запущена")
-
-        CoroutineScope(Dispatchers.IO).launch {
-            println("**DEBUG**: Корутин стартует")
-            try {
-                println("Будем сохранять: [$url]($url)")
-
-                val html = downloadWebPage(url)
-                val markdown = convertHtmlToMarkdown(html)
-                println("**DEBUG**: Markdown сформирован:\n$markdown")
-                saveToFile("page_${System.currentTimeMillis()}.md", markdown)
-
-                println("✅ Успешно сохранено!")
-            } catch (e: Exception) {
-                println("**ERROR**: Исключение: ${e::class.java.name} ${e.message}")
-                e.printStackTrace()
-            }
-        }
-    }
-
-    // Сохраняет строку content в файл с именем fileName во внутреннюю папку приложения
     private fun saveToFile(fileName: String, content: String) {
         val dir = File(getExternalFilesDir(null), "WebToMarkdown")
         if (!dir.exists()) dir.mkdirs()
-
         val file = File(dir, fileName)
         file.writeText(content)
         println("📁 Файл сохранён: ${file.absolutePath}")
     }
 
-    // Скачивает HTML-страницу по URL (в корутине)
     private suspend fun downloadWebPage(url: String): String {
         val client = OkHttpClient()
         val request = Request.Builder().url(url).build()
         val response = client.newCall(request).execute()
-
         if (!response.isSuccessful) throw IOException("Ошибка HTTP ${response.code}")
-
         return response.body?.string() ?: throw IOException("Пустой ответ")
     }
 
-    // Конвертирует HTML в markdown используя Jsoup
     private fun convertHtmlToMarkdown(html: String): String {
         return try {
             val doc = Jsoup.parse(html)
@@ -131,7 +133,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    // Рекурсивная конвертация элементов HTML в markdown
     private fun elementToMarkdown(element: org.jsoup.nodes.Element): String {
         return when (element.tagName().lowercase()) {
             "h1" -> "# ${element.text()}"
@@ -150,6 +151,19 @@ class MainActivity : ComponentActivity() {
                 element.children().joinToString("\n") { elementToMarkdown(it) }
             else
                 element.text()
+        }
+    }
+
+    private fun sanitizeFileName(name: String): String {
+        return name.replace("[\\\\/:*?\"<>|]".toRegex(), "_").trim()
+    }
+
+    private fun extractTitleFromHtml(html: String): String? {
+        return try {
+            val doc = Jsoup.parse(html)
+            doc.title()
+        } catch (e: Exception) {
+            null
         }
     }
 }
