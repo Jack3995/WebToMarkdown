@@ -62,5 +62,6 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
     implementation("androidx.compose.material:material-icons-extended:1.6.0")
     implementation("androidx.documentfile:documentfile:1.0.1")
+    implementation("androidx.compose.material3:material3:<версия>")
 
 }

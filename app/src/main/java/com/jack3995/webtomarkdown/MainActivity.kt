@@ -6,27 +6,22 @@ import android.os.Environment
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.documentfile.provider.DocumentFile
 import com.jack3995.webtomarkdown.screens.*
+import com.jack3995.webtomarkdown.screens.FileNameOption
+import com.jack3995.webtomarkdown.screens.SaveLocationOption
+import com.jack3995.webtomarkdown.util.WebContentProcessor
 import kotlinx.coroutines.*
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import org.jsoup.Jsoup
 import java.io.File
 import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.*
+import androidx.compose.material3.ExperimentalMaterial3Api
 
-import com.jack3995.webtomarkdown.screens.FileNameOption
-import com.jack3995.webtomarkdown.screens.SaveLocationOption
 
 class MainActivity : ComponentActivity() {
 
@@ -36,13 +31,17 @@ class MainActivity : ComponentActivity() {
 
     private var pendingSaveCallback: ((Uri?) -> Unit)? = null
 
+    // ✅ используем общий помощник для работы с HTML
+    private val processor = WebContentProcessor()
+
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val folderPickerLauncher = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
-            pendingSaveCallback?.invoke(uri)
-        }
+        val folderPickerLauncher =
+            registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+                pendingSaveCallback?.invoke(uri)
+            }
 
         setContent {
             var currentScreen by rememberSaveable { mutableStateOf(Screen.Splash) }
@@ -57,21 +56,21 @@ class MainActivity : ComponentActivity() {
 
             val context = this
 
-            // Функция очистки полей
+            // Очистка полей
             fun clearFields() {
                 urlState.value = ""
                 fileNameInput = ""
                 notePreview = ""
             }
 
-            // Функция получения имени файла по умолчанию
+            // Имя файла по умолчанию
             fun getDefaultFileName(): String {
                 val dateFormat = SimpleDateFormat("dd.MM.yyyy_HH.mm", Locale.getDefault())
                 val currentDate = dateFormat.format(Date())
                 return "Заметка_$currentDate"
             }
 
-            // Функция обработки URL
+            // Обработка URL
             fun processUrl() {
                 val url = urlState.value.trim()
                 if (url.isEmpty()) {
@@ -84,13 +83,16 @@ class MainActivity : ComponentActivity() {
                 CoroutineScope(Dispatchers.IO).launch {
                     try {
                         val html = downloadWebPage(url)
-                        val markdown = convertHtmlToMarkdown(html)
+
+                        // ✅ теперь используем processor для работы
+                        val markdown = processor.convertHtmlToMarkdown(html)
                         val newFileName = when (fileNameOption) {
                             FileNameOption.ASK_EVERY_TIME -> ""
                             FileNameOption.DEFAULT_NAME -> getDefaultFileName()
                             FileNameOption.PAGE_TITLE -> {
-                                val title = extractTitleFromHtml(html)
-                                if (title.isNullOrBlank()) getDefaultFileName() else sanitizeFileName(title)
+                                val title = processor.extractTitle(html)
+                                if (title.isNullOrBlank()) getDefaultFileName()
+                                else processor.sanitizeFilename(title)
                             }
                         }
                         withContext(Dispatchers.Main) {
@@ -106,7 +108,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            // Сохранение заметки через SAF
+            // Сохранение через SAF
             fun saveNoteToSAF(folderUri: Uri, fileName: String, content: String) {
                 val pickedDir = DocumentFile.fromTreeUri(context, folderUri)
                 val safeFileName = if (fileName.endsWith(".md")) fileName else "$fileName.md"
@@ -121,15 +123,15 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            // Сохранение заметки локально в указанную папку
+            // Сохранение локально
             fun saveToFileCustomDir(dir: File, fileName: String, content: String) {
                 if (!dir.exists()) dir.mkdirs()
                 val file = File(dir, fileName)
                 file.writeText(content)
-                println("📁 Файл сохранён в папку Загрузки: ${file.absolutePath}")
+                println("📁 Файл сохранён в: ${file.absolutePath}")
             }
 
-            // Функция сохранения заметки
+            // Главная функция сохранения
             fun saveNote() {
                 val fileName = fileNameInput.ifBlank {
                     if (fileNameOption == FileNameOption.DEFAULT_NAME) getDefaultFileName()
@@ -166,104 +168,50 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
+            // Splash → Main
             LaunchedEffect(Unit) {
                 delay(2000L)
                 currentScreen = Screen.Main
             }
 
             when (currentScreen) {
-                Screen.Splash -> {
-                    SplashScreen()
-                }
-                Screen.Main -> {
-                    MainScreen(
-                        urlState = urlState.value,
-                        onUrlChange = { urlState.value = it },
-                        onProcessClick = { processUrl() },
-                        onSaveClick = { saveNote() },
-                        onClearClick = { clearFields() },           // передаём callback очистки
-                        onOpenSettings = { currentScreen = Screen.Settings },
-                        fileNameInput = fileNameInput,
-                        onFileNameInputChange = { fileNameInput = it },
-                        notePreview = notePreview
-                    )
-                }
-                Screen.Settings -> {
-                    SettingsScreen(
-                        initialPath = savedFolderPath,
-                        initialFileNameOption = fileNameOption,
-                        initialSaveLocationOption = saveLocationOption,
-                        onSave = { askEveryTime, path, option, locationOption ->
-                            savedFolderPath = path
-                            fileNameOption = option
-                            saveLocationOption = locationOption
-                            currentScreen = Screen.Main
-                            if (locationOption == SaveLocationOption.CUSTOM_FOLDER && !path.isNullOrBlank()) {
-                                lastCustomFolderUri = path
-                            }
+                Screen.Splash -> SplashScreen()
+                Screen.Main -> MainScreen(
+                    urlState = urlState.value,
+                    onUrlChange = { urlState.value = it },
+                    onProcessClick = { processUrl() },
+                    onSaveClick = { saveNote() },
+                    onClearClick = { clearFields() },
+                    onOpenSettings = { currentScreen = Screen.Settings },
+                    fileNameInput = fileNameInput,
+                    onFileNameInputChange = { fileNameInput = it },
+                    notePreview = notePreview
+                )
+                Screen.Settings -> SettingsScreen(
+                    initialPath = savedFolderPath,
+                    initialFileNameOption = fileNameOption,
+                    initialSaveLocationOption = saveLocationOption,
+                    onSave = { _, path, option, locationOption ->
+                        savedFolderPath = path
+                        fileNameOption = option
+                        saveLocationOption = locationOption
+                        currentScreen = Screen.Main
+                        if (locationOption == SaveLocationOption.CUSTOM_FOLDER && !path.isNullOrBlank()) {
+                            lastCustomFolderUri = path
                         }
-                    )
-                }
+                    }
+                )
             }
         }
     }
 
+    // Оставляем только сетевой метод тут
     private suspend fun downloadWebPage(url: String): String {
         val client = OkHttpClient()
         val request = Request.Builder().url(url).build()
         client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) throw IOException("Ошибка HTTP ${response.code}")
             return response.body?.string() ?: throw IOException("Пустой ответ")
-        }
-    }
-
-    private fun convertHtmlToMarkdown(html: String): String {
-        return try {
-            val doc = Jsoup.parse(html)
-            doc.select("script, style, iframe, noscript").remove()
-            val sb = StringBuilder()
-            val body = doc.body()
-            if (body != null) {
-                for (element in body.children()) {
-                    sb.append(elementToMarkdown(element))
-                    sb.append("\n\n")
-                }
-            } else {
-                sb.append("Нет содержимого для отображения")
-            }
-            sb.toString().trim()
-        } catch (e: Exception) {
-            "Ошибка преобразования: ${e.message}"
-        }
-    }
-
-    private fun elementToMarkdown(element: org.jsoup.nodes.Element): String {
-        return when (element.tagName().lowercase()) {
-            "h1" -> "# ${element.text()}"
-            "h2" -> "## ${element.text()}"
-            "h3" -> "### ${element.text()}"
-            "h4" -> "#### ${element.text()}"
-            "h5" -> "##### ${element.text()}"
-            "h6" -> "###### ${element.text()}"
-            "p" -> element.text()
-            "ul" -> element.children().joinToString("\n") { "- ${it.text()}" }
-            "ol" -> element.children().mapIndexed { i, li -> "${i + 1}. ${li.text()}" }.joinToString("\n")
-            "a" -> "[${element.text()}](${element.attr("href")})"
-            "b", "strong" -> "**${element.text()}**"
-            "i", "em" -> "*${element.text()}*"
-            else -> if (element.children().isNotEmpty()) element.children().joinToString("\n") { elementToMarkdown(it) } else element.text()
-        }
-    }
-
-    private fun sanitizeFileName(name: String): String {
-        return name.replace("[\\\\/:*?\"<>|]".toRegex(), "_").trim()
-    }
-
-    private fun extractTitleFromHtml(html: String): String? {
-        return try {
-            Jsoup.parse(html).title()
-        } catch (e: Exception) {
-            null
         }
     }
 }
