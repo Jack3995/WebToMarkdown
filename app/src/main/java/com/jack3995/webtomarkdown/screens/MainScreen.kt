@@ -18,11 +18,14 @@ fun MainScreen(
     onUrlChange: (String) -> Unit,
     onProcessClick: () -> Unit,
     onSaveClick: () -> Unit,
+    onClearClick: () -> Unit,
     onOpenSettings: () -> Unit,
     fileNameInput: String,
     onFileNameInputChange: (String) -> Unit,
     notePreview: String
 ) {
+    val scrollState = rememberScrollState()
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -36,23 +39,29 @@ fun MainScreen(
         },
         bottomBar = {
             BottomAppBar {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     Button(
                         onClick = onProcessClick,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(48.dp)
+                        modifier = Modifier.weight(1f).height(48.dp)
                     ) {
                         Text("Обработать")
                     }
                     Button(
+                        onClick = onClearClick,
+                        modifier = Modifier.weight(1f).height(48.dp)
+                    ) {
+                        Text("Очистить")
+                    }
+                    Button(
                         onClick = onSaveClick,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(48.dp)
+                        modifier = Modifier.weight(1f).height(48.dp)
                     ) {
                         Text("Сохранить")
                     }
+
                 }
             }
         }
@@ -87,7 +96,7 @@ fun MainScreen(
                     .fillMaxWidth()
                     .weight(1f)
                     .padding(8.dp)
-                    .verticalScroll(rememberScrollState())
+                    .verticalScroll(scrollState)
             ) {
                 Text(
                     text = notePreview,
