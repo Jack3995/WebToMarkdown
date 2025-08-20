@@ -48,7 +48,7 @@ class MainActivity : ComponentActivity() {
 
         fileSaveHandler = FileSaveHandler(this, contentResolver)
 
-        // Регистрация launcher должна быть в onCreate, а не внутри setContent
+        // Регистрируем launcher в onCreate
         folderPickerLauncher = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
             fileSaveHandler.onFolderPicked(uri, fileNameInput, notePreview) { success ->
                 if (!success) println("❗ Ошибка сохранения файла через SAF")
@@ -134,20 +134,20 @@ class MainActivity : ComponentActivity() {
                     if (_fileNameOption == FileNameOption.DEFAULT_NAME) getDefaultFileName()
                     else "page_${System.currentTimeMillis()}.md"
                 }
-                // Передача текущего URI кастомной папки в FileSaveHandler
+                // Синхронизируем URI с FileSaveHandler
                 fileSaveHandler.lastCustomFolderUri = _lastCustomFolderUri
 
+                // Даем команду сохранить без лишних деталей
                 fileSaveHandler.saveNote(
                     fileName,
                     _notePreview,
                     _saveLocationOption,
                     onFolderPickerRequest = {
-                        // Запускаем стандартный диалог выбора папки
                         folderPickerLauncher.launch(null)
                     },
                     onSaveResult = { success ->
                         if (!success) println("❗ Ошибка сохранения заметки")
-                        // При необходимости можно уведомить пользователя об успехе/неудаче
+                        // Тут можно показать UI-уведомление
                     }
                 )
             }
