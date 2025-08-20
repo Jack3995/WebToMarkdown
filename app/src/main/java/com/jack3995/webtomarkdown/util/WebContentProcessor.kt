@@ -2,14 +2,19 @@ package com.jack3995.webtomarkdown.util
 
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
+import java.text.SimpleDateFormat
+import java.util.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class WebContentProcessor {
+
+    data class ProcessResult(val markdown: String, val fileName: String)
 
     // Конвертирует HTML в markdown, фильтруя лишние элементы
     fun convertHtmlToMarkdown(html: String): String {
         val doc = Jsoup.parse(html)
         doc.select("script, style, iframe, noscript, .share-button, .like-button, button").remove()
-
         val body = doc.body()
         val sb = StringBuilder()
         if (body != null) {
@@ -49,5 +54,35 @@ class WebContentProcessor {
         Jsoup.parse(html).title()
     } catch (_: Exception) {
         null
+    }
+
+    // Генерация имени файла по умолчанию с датой и временем
+    fun getDefaultFileName(): String {
+        val dateFormat = SimpleDateFormat("dd.MM.yyyy_HH.mm", Locale.getDefault())
+        val currentDate = dateFormat.format(Date())
+        return "Заметка_$currentDate"
+    }
+
+    // Основная функция обработки страницы по url и опции имени файла
+    // Возвращает Result с ProcessResult или ошибкой
+    suspend fun processPage(
+        url: String,
+        fileNameOption: com.jack3995.webtomarkdown.screens.FileNameOption
+    ): Result<ProcessResult> = withContext(Dispatchers.IO) {
+        try {
+            val html = WebDownloader().downloadWebPage(url)
+            val markdown = convertHtmlToMarkdown(html)
+            val fileName = when (fileNameOption) {
+                com.jack3995.webtomarkdown.screens.FileNameOption.ASK_EVERY_TIME -> ""
+                com.jack3995.webtomarkdown.screens.FileNameOption.DEFAULT_NAME -> getDefaultFileName()
+                com.jack3995.webtomarkdown.screens.FileNameOption.PAGE_TITLE -> {
+                    val title = extractTitle(html)
+                    if (title.isNullOrBlank()) getDefaultFileName() else sanitizeFilename(title)
+                }
+            }
+            Result.success(ProcessResult(markdown, fileName))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 }

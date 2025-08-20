@@ -13,10 +13,7 @@ import com.jack3995.webtomarkdown.screens.FileNameOption
 import com.jack3995.webtomarkdown.screens.SaveLocationOption
 import com.jack3995.webtomarkdown.util.WebContentProcessor
 import com.jack3995.webtomarkdown.util.FileSaveHandler
-import com.jack3995.webtomarkdown.util.WebDownloader
 import kotlinx.coroutines.*
-import java.text.SimpleDateFormat
-import java.util.*
 import androidx.compose.material3.ExperimentalMaterial3Api
 
 class MainActivity : ComponentActivity() {
@@ -26,19 +23,15 @@ class MainActivity : ComponentActivity() {
     }
 
     private val processor = WebContentProcessor()
-    private val webDownloader = WebDownloader()
     private lateinit var fileSaveHandler: FileSaveHandler
-
     private lateinit var folderPickerLauncher: ActivityResultLauncher<Uri?>
 
     private var fileNameInput by mutableStateOf("")
     private var notePreview by mutableStateOf("")
     private var urlState = mutableStateOf("")
-
     private var fileNameOption by mutableStateOf(FileNameOption.DEFAULT_NAME)
     private var saveLocationOption by mutableStateOf(SaveLocationOption.ASK_EVERY_TIME)
     private var lastCustomFolderUri by mutableStateOf<String?>(null)
-
     private var currentScreen by mutableStateOf(Screen.Splash)
     private var savedFolderPath by mutableStateOf<String?>(null)
 
@@ -48,8 +41,10 @@ class MainActivity : ComponentActivity() {
 
         fileSaveHandler = FileSaveHandler(this, contentResolver)
 
-        // Регистрируем launcher в onCreate
+        // Инициализация лаунчера для выбора папки через SAF
         folderPickerLauncher = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+            // Сохраняем выбранный URI папки в виде строки
+            lastCustomFolderUri = uri?.toString()
             fileSaveHandler.onFolderPicked(uri, fileNameInput, notePreview) { success ->
                 if (!success) println("❗ Ошибка сохранения файла через SAF")
             }
@@ -59,13 +54,13 @@ class MainActivity : ComponentActivity() {
             var _currentScreen by rememberSaveable { mutableStateOf(currentScreen) }
             var _savedFolderPath by rememberSaveable { mutableStateOf(savedFolderPath) }
             var _lastCustomFolderUri by rememberSaveable { mutableStateOf(lastCustomFolderUri) }
-
             val _urlState = remember { mutableStateOf(urlState.value) }
             var _fileNameOption by rememberSaveable { mutableStateOf(fileNameOption) }
             var _saveLocationOption by rememberSaveable { mutableStateOf(saveLocationOption) }
             var _notePreview by remember { mutableStateOf(notePreview) }
             var _fileNameInput by remember { mutableStateOf(fileNameInput) }
 
+            // Очищает все поля ввода и предпросмотра
             fun clearFields() {
                 _urlState.value = ""
                 _fileNameInput = ""
@@ -73,20 +68,9 @@ class MainActivity : ComponentActivity() {
             }
 
             /**
-             * Генерация имени файла по умолчанию с датой и временем
-             * @return строка с именем файла, например, "Заметка_20.08.2025_22.35"
-             */
-            fun getDefaultFileName(): String {
-                val dateFormat = SimpleDateFormat("dd.MM.yyyy_HH.mm", Locale.getDefault())
-                val currentDate = dateFormat.format(Date())
-                return "Заметка_$currentDate"
-            }
-
-            /**
-             * Обработка введенного URL:
-             * Загружает HTML страницы, конвертирует в markdown,
-             * формирует имя файла в зависимости от выбранной опции.
-             * Все операции выполняются в фоне.
+             * Загружает страницу по текущему url, обрабатывает её через WebContentProcessor,
+             * обновляет предпросмотр markdown и устанавливает имя файла.
+             * Обработка происходит асинхронно в фоновом потоке.
              */
             fun processUrl() {
                 val url = _urlState.value.trim()
@@ -98,25 +82,14 @@ class MainActivity : ComponentActivity() {
                 }
 
                 CoroutineScope(Dispatchers.IO).launch {
-                    try {
-                        val html = webDownloader.downloadWebPage(url)
-                        val markdown = processor.convertHtmlToMarkdown(html)
-                        val newFileName = when (_fileNameOption) {
-                            FileNameOption.ASK_EVERY_TIME -> ""
-                            FileNameOption.DEFAULT_NAME -> getDefaultFileName()
-                            FileNameOption.PAGE_TITLE -> {
-                                val title = processor.extractTitle(html)
-                                if (title.isNullOrBlank()) getDefaultFileName()
-                                else processor.sanitizeFilename(title)
-                            }
-                        }
-                        withContext(Dispatchers.Main) {
-                            _notePreview = markdown
-                            _fileNameInput = newFileName
-                        }
-                    } catch (e: Exception) {
-                        withContext(Dispatchers.Main) {
-                            _notePreview = "Ошибка загрузки страницы: ${e.message}"
+                    val result = processor.processPage(url, _fileNameOption)
+                    withContext(Dispatchers.Main) {
+                        if (result.isSuccess) {
+                            val data = result.getOrThrow()
+                            _notePreview = data.markdown
+                            _fileNameInput = data.fileName
+                        } else {
+                            _notePreview = "Ошибка загрузки страницы: ${result.exceptionOrNull()?.message}"
                             _fileNameInput = ""
                         }
                     }
@@ -124,20 +97,18 @@ class MainActivity : ComponentActivity() {
             }
 
             /**
-             * Логика сохранения заметки
-             * Определяет имя файла (если пустое, генерирует по умолчанию)
-             * Делегирует сохранение FileSaveHandler с передачей текущих настроек
-             * Виджет выбора папки будет вызван автоматически при необходимости
+             * Обрабатывает команду сохранения заметки:
+             * - Определяет имя файла (если пустое, генерирует по умолчанию)
+             * - Передает данные в FileSaveHandler для сохранения
+             * - Запускает выбор папки, если нужно
              */
             fun saveNote() {
                 val fileName = _fileNameInput.ifBlank {
-                    if (_fileNameOption == FileNameOption.DEFAULT_NAME) getDefaultFileName()
+                    if (_fileNameOption == FileNameOption.DEFAULT_NAME) processor.getDefaultFileName()
                     else "page_${System.currentTimeMillis()}.md"
                 }
-                // Синхронизируем URI с FileSaveHandler
-                fileSaveHandler.lastCustomFolderUri = _lastCustomFolderUri
 
-                // Даем команду сохранить без лишних деталей
+                fileSaveHandler.lastCustomFolderUri = _lastCustomFolderUri
                 fileSaveHandler.saveNote(
                     fileName,
                     _notePreview,
@@ -147,28 +118,29 @@ class MainActivity : ComponentActivity() {
                     },
                     onSaveResult = { success ->
                         if (!success) println("❗ Ошибка сохранения заметки")
-                        // Тут можно показать UI-уведомление
+                        // Здесь можно добавить UI-уведомление об успехе/ошибке
                     }
                 )
             }
 
-            /**
-             * Задержка на Splash экране, после которой переходим к основному
-             */
+            // Задержка на Splash экране, затем переход к основному экрану
             LaunchedEffect(Unit) {
-                delay(2000L)
+                kotlinx.coroutines.delay(2000L)
                 _currentScreen = Screen.Main
             }
 
+            // Синхронизация локальных состояний с внешними состояниями
             currentScreen = _currentScreen
             savedFolderPath = _savedFolderPath
             lastCustomFolderUri = _lastCustomFolderUri
+
             urlState.value = _urlState.value
             fileNameOption = _fileNameOption
             saveLocationOption = _saveLocationOption
             notePreview = _notePreview
             fileNameInput = _fileNameInput
 
+            // Отображение соответствующего экрана в зависимости от состояния
             when (_currentScreen) {
                 Screen.Splash -> SplashScreen()
                 Screen.Main -> MainScreen(
