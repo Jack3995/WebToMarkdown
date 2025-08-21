@@ -17,15 +17,14 @@ class WebContentProcessor {
         doc.select("script, style, iframe, noscript, .share-button, .like-button, button").remove()
         val body = doc.body()
         val sb = StringBuilder()
-        if (body != null) {
-            for (element in body.children()) {
-                sb.append(elementToMarkdown(element))
-                sb.append("\n\n")
-            }
-        } else {
-            sb.append("Нет содержимого")
+
+        for (element in body.children()) {
+            sb.append(elementToMarkdown(element))
+            sb.append("\n\n")
         }
+
         return sb.toString().trim()
+
     }
 
     // Рекурсивно преобразует HTML элемент в markdown
