@@ -1,7 +1,9 @@
 package com.jack3995.webtomarkdown
 
+import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -15,6 +17,8 @@ import com.jack3995.webtomarkdown.util.WebContentProcessor
 import com.jack3995.webtomarkdown.util.FileSaveHandler
 import kotlinx.coroutines.*
 import androidx.compose.material3.ExperimentalMaterial3Api
+import java.text.SimpleDateFormat
+import java.util.*
 
 class MainActivity : ComponentActivity() {
 
@@ -29,49 +33,52 @@ class MainActivity : ComponentActivity() {
     private var fileNameInput by mutableStateOf("")
     private var notePreview by mutableStateOf("")
     private var urlState = mutableStateOf("")
+
     private var fileNameOption by mutableStateOf(FileNameOption.DEFAULT_NAME)
     private var saveLocationOption by mutableStateOf(SaveLocationOption.ASK_EVERY_TIME)
     private var lastCustomFolderUri by mutableStateOf<String?>(null)
+
     private var currentScreen by mutableStateOf(Screen.Splash)
     private var savedFolderPath by mutableStateOf<String?>(null)
 
-    @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         fileSaveHandler = FileSaveHandler(this, contentResolver)
 
-        // Инициализация лаунчера для выбора папки через SAF
         folderPickerLauncher = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
-            // Сохраняем выбранный URI папки в виде строки
             lastCustomFolderUri = uri?.toString()
             fileSaveHandler.onFolderPicked(uri, fileNameInput, notePreview) { success ->
                 if (!success) println("❗ Ошибка сохранения файла через SAF")
             }
         }
 
+        // Обрабатываем интент при старте
+        handleSendIntent(intent)
+
         setContent {
             var _currentScreen by rememberSaveable { mutableStateOf(currentScreen) }
             var _savedFolderPath by rememberSaveable { mutableStateOf(savedFolderPath) }
             var _lastCustomFolderUri by rememberSaveable { mutableStateOf(lastCustomFolderUri) }
+
             val _urlState = remember { mutableStateOf(urlState.value) }
             var _fileNameOption by rememberSaveable { mutableStateOf(fileNameOption) }
             var _saveLocationOption by rememberSaveable { mutableStateOf(saveLocationOption) }
             var _notePreview by remember { mutableStateOf(notePreview) }
             var _fileNameInput by remember { mutableStateOf(fileNameInput) }
 
-            // Очищает все поля ввода и предпросмотра
             fun clearFields() {
                 _urlState.value = ""
                 _fileNameInput = ""
                 _notePreview = ""
             }
 
-            /**
-             * Загружает страницу по текущему url, обрабатывает её через WebContentProcessor,
-             * обновляет предпросмотр markdown и устанавливает имя файла.
-             * Обработка происходит асинхронно в фоновом потоке.
-             */
+            fun getDefaultFileName(): String {
+                val dateFormat = SimpleDateFormat("dd.MM.yyyy_HH.mm", Locale.getDefault())
+                val currentDate = dateFormat.format(Date())
+                return "Заметка_$currentDate"
+            }
+
             fun processUrl() {
                 val url = _urlState.value.trim()
                 if (url.isEmpty()) {
@@ -96,12 +103,6 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            /**
-             * Обрабатывает команду сохранения заметки:
-             * - Определяет имя файла (если пустое, генерирует по умолчанию)
-             * - Передает данные в FileSaveHandler для сохранения
-             * - Запускает выбор папки, если нужно
-             */
             fun saveNote() {
                 val fileName = _fileNameInput.ifBlank {
                     if (_fileNameOption == FileNameOption.DEFAULT_NAME) processor.getDefaultFileName()
@@ -109,6 +110,7 @@ class MainActivity : ComponentActivity() {
                 }
 
                 fileSaveHandler.lastCustomFolderUri = _lastCustomFolderUri
+
                 fileSaveHandler.saveNote(
                     fileName,
                     _notePreview,
@@ -118,29 +120,26 @@ class MainActivity : ComponentActivity() {
                     },
                     onSaveResult = { success ->
                         if (!success) println("❗ Ошибка сохранения заметки")
-                        // Здесь можно добавить UI-уведомление об успехе/ошибке
+                        // Можно здесь добавить уведомления для пользователя
                     }
                 )
             }
 
-            // Задержка на Splash экране, затем переход к основному экрану
             LaunchedEffect(Unit) {
-                kotlinx.coroutines.delay(2000L)
+                delay(2000L)
                 _currentScreen = Screen.Main
             }
 
-            // Синхронизация локальных состояний с внешними состояниями
+            // Синхронизация состояний
             currentScreen = _currentScreen
             savedFolderPath = _savedFolderPath
             lastCustomFolderUri = _lastCustomFolderUri
-
             urlState.value = _urlState.value
             fileNameOption = _fileNameOption
             saveLocationOption = _saveLocationOption
             notePreview = _notePreview
             fileNameInput = _fileNameInput
 
-            // Отображение соответствующего экрана в зависимости от состояния
             when (_currentScreen) {
                 Screen.Splash -> SplashScreen()
                 Screen.Main -> MainScreen(
@@ -168,6 +167,23 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 )
+            }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleSendIntent(intent)
+    }
+
+    private fun handleSendIntent(intent: Intent) {
+        if (intent.action == Intent.ACTION_SEND && intent.type == "text/plain") {
+            val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
+            if (!sharedText.isNullOrEmpty()) {
+                Log.d("ShareIntent", "Получена ссылка: $sharedText")
+                urlState.value = sharedText.trim()
+                // Если хотите, запустить сразу обработку:
+                // processUrl() - нужно адаптировать доступ в этом контексте
             }
         }
     }
