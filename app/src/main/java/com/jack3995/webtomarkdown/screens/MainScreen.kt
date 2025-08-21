@@ -61,7 +61,6 @@ fun MainScreen(
                     ) {
                         Text("Сохранить")
                     }
-
                 }
             }
         }
@@ -79,29 +78,40 @@ fun MainScreen(
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(modifier = Modifier.height(8.dp))
-            TextField(
-                value = fileNameInput,
-                onValueChange = onFileNameInputChange,
-                label = { Text("Имя файла") },
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(
-                text = "Предпросмотр заметки:",
-                style = MaterialTheme.typography.titleMedium
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .padding(8.dp)
-                    .verticalScroll(scrollState)
-            ) {
-                Text(
-                    text = notePreview,
-                    style = MaterialTheme.typography.bodyMedium
+
+            // Показываем поле для имени файла только если есть содержимое для предпросмотра
+            if (notePreview.isNotBlank()) {
+                TextField(
+                    value = fileNameInput,
+                    onValueChange = onFileNameInputChange,
+                    label = { Text("Имя файла") },
+                    modifier = Modifier.fillMaxWidth()
                 )
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = "Предпросмотр заметки:",
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Surface(
+                    tonalElevation = 2.dp,
+                    shape = MaterialTheme.shapes.medium,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .verticalScroll(scrollState)
+                            .padding(12.dp)
+                    ) {
+                        Text(
+                            text = notePreview,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                }
             }
         }
     }
