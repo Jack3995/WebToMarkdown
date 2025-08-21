@@ -27,20 +27,30 @@ android {
             )
         }
     }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
-    kotlinOptions {
-        jvmTarget = "11"
-    }
+
     buildFeatures {
         compose = true
     }
 }
 
-dependencies {
+// Новый блок настроек Kotlin для замены kotlinOptions
+kotlin {
+    // Устанавливаем JVM-таргет через jvmToolchain
+    jvmToolchain(11)
 
+    // Если нужны дополнительные опции компилятора, можно добавить сюда
+    compilerOptions {
+        // Например:
+        // freeCompilerArgs.add("-Xjvm-default=all")
+    }
+}
+
+dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
@@ -56,12 +66,11 @@ dependencies {
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")  // Для загрузки HTML
-    implementation("org.jsoup:jsoup:1.17.2")             // Для парсинга HTML
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
-    implementation("androidx.compose.material:material-icons-extended:1.6.0")
-    implementation("androidx.documentfile:documentfile:1.0.1")
-    implementation("androidx.compose.material3:material3:<версия>")
-
+    implementation("com.squareup.okhttp3:okhttp:5.1.0")  // Для загрузки HTML
+    implementation("org.jsoup:jsoup:1.21.1")             // Для парсинга HTML
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+    implementation("androidx.compose.material:material-icons-extended:1.7.8")
+    implementation("androidx.documentfile:documentfile:1.1.0")
+    implementation("androidx.compose.material3:material3:1.3.2")
 }
