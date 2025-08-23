@@ -7,6 +7,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -22,7 +23,8 @@ fun MainScreen(
     onOpenSettings: () -> Unit,
     fileNameInput: String,
     onFileNameInputChange: (String) -> Unit,
-    notePreview: String
+    notePreview: String,
+    isLoading: Boolean = false
 ) {
     val scrollState = rememberScrollState()
 
@@ -79,8 +81,36 @@ fun MainScreen(
             )
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Показываем поле для имени файла только если есть содержимое для предпросмотра
-            if (notePreview.isNotBlank()) {
+            // Показываем индикацию загрузки или содержимое
+            if (isLoading) {
+                // Индикация загрузки
+                Surface(
+                    tonalElevation = 2.dp,
+                    shape = MaterialTheme.shapes.medium,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(12.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            CircularProgressIndicator()
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                text = "Обрабатываем страницу...",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    }
+                }
+            } else if (notePreview.isNotBlank()) {
+                // Показываем поле для имени файла только если есть содержимое для предпросмотра
                 TextField(
                     value = fileNameInput,
                     onValueChange = onFileNameInputChange,

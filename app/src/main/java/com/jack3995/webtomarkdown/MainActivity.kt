@@ -17,6 +17,7 @@ import com.jack3995.webtomarkdown.util.WebContentProcessor
 import com.jack3995.webtomarkdown.util.FileSaveHandler
 import kotlinx.coroutines.*
 import androidx.compose.material3.ExperimentalMaterial3Api
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -38,9 +39,19 @@ class MainActivity : ComponentActivity() {
     private var saveLocationOption by mutableStateOf(SaveLocationOption.ASK_EVERY_TIME)
     private var lastCustomFolderUri by mutableStateOf<String?>(null)
 
+    private var downloadImages by mutableStateOf(true)
+    private var imagesFolder by mutableStateOf<File?>(null) // Инициализировано с корректным типом
+    private var isLoading by mutableStateOf(false)
+
     private var currentScreen by mutableStateOf(Screen.Splash)
     private var savedFolderPath by mutableStateOf<String?>(null)
+    
+    // Переменные для хранения текущих значений при выборе папки
+    private var pendingFileName by mutableStateOf("")
+    private var pendingContent by mutableStateOf("")
+    private var pendingImagesFolder by mutableStateOf<File?>(null)
 
+    @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -48,8 +59,20 @@ class MainActivity : ComponentActivity() {
 
         folderPickerLauncher = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
             lastCustomFolderUri = uri?.toString()
-            fileSaveHandler.onFolderPicked(uri, fileNameInput, notePreview) { success ->
-                if (!success) println("❗ Ошибка сохранения файла через SAF")
+            // Используем сохраненные значения для сохранения файла
+            if (uri != null) {
+                println("📁 Выбрана папка: $uri")
+                println("💾 Сохраняем файл: $pendingFileName")
+                pendingImagesFolder?.let { folder ->
+                    println("🖼️ Папка с изображениями: ${folder.absolutePath}")
+                }
+                
+                fileSaveHandler.onFolderPicked(uri, pendingFileName, pendingContent, { success ->
+                    if (!success) println("❗ Ошибка сохранения файла через SAF")
+                    else println("✅ Файл успешно сохранен через SAF")
+                }, pendingImagesFolder)
+            } else {
+                println("❌ Папка не выбрана")
             }
         }
 
@@ -66,6 +89,9 @@ class MainActivity : ComponentActivity() {
             var _saveLocationOption by rememberSaveable { mutableStateOf(saveLocationOption) }
             var _notePreview by remember { mutableStateOf(notePreview) }
             var _fileNameInput by remember { mutableStateOf(fileNameInput) }
+            var _downloadImages by remember { mutableStateOf(downloadImages) }
+            var _imagesFolder by remember { mutableStateOf<File?>(imagesFolder) }
+            var _isLoading by remember { mutableStateOf(isLoading) }
 
             fun clearFields() {
                 _urlState.value = ""
@@ -88,16 +114,25 @@ class MainActivity : ComponentActivity() {
                     return
                 }
 
+                _isLoading = true
+                _notePreview = ""
+
                 CoroutineScope(Dispatchers.IO).launch {
-                    val result = processor.processPage(url, _fileNameOption)
+                    val result = processor.processPage(url, _fileNameOption, _downloadImages)
                     withContext(Dispatchers.Main) {
+                        _isLoading = false
                         if (result.isSuccess) {
                             val data = result.getOrThrow()
                             _notePreview = data.markdown
                             _fileNameInput = data.fileName
+                            _imagesFolder = data.imagesFolder
+                            if (data.imagesFolder != null) {
+                                println("📁 Папка с изображениями: ${data.imagesFolder.name}")
+                            }
                         } else {
                             _notePreview = "Ошибка загрузки страницы: ${result.exceptionOrNull()?.message}"
                             _fileNameInput = ""
+                            _imagesFolder = null
                         }
                     }
                 }
@@ -111,17 +146,36 @@ class MainActivity : ComponentActivity() {
 
                 fileSaveHandler.lastCustomFolderUri = _lastCustomFolderUri
 
+                println("💾 Сохраняем заметку: $fileName")
+                _imagesFolder?.let { folder ->
+                    println("📁 Папка с изображениями: ${folder.absolutePath}")
+                    println("📁 Содержимое папки: ${folder.listFiles()?.map { it.name } ?: "пусто"}")
+                } ?: run {
+                    println("⚠️ Папка с изображениями не найдена")
+                }
+
                 fileSaveHandler.saveNote(
                     fileName,
                     _notePreview,
                     _saveLocationOption,
                     onFolderPickerRequest = {
+                        // Сохраняем текущие значения для использования в замыкании
+                        pendingFileName = fileName
+                        pendingContent = _notePreview
+                        pendingImagesFolder = _imagesFolder
+                        
+                        println("💾 Сохранены значения для выбора папки:")
+                        println("   Файл: $fileName")
+                        println("   Папка с изображениями: ${_imagesFolder?.absolutePath ?: "нет"}")
+                        
                         folderPickerLauncher.launch(null)
                     },
                     onSaveResult = { success ->
                         if (!success) println("❗ Ошибка сохранения заметки")
-                        // Можно здесь добавить уведомления для пользователя
-                    }
+                        else println("✅ Заметка успешно сохранена")
+                        // Можно добавить уведомление об успехе/ошибке
+                    },
+                    imagesFolder = _imagesFolder
                 )
             }
 
@@ -130,7 +184,6 @@ class MainActivity : ComponentActivity() {
                 _currentScreen = Screen.Main
             }
 
-            // Синхронизация состояний
             currentScreen = _currentScreen
             savedFolderPath = _savedFolderPath
             lastCustomFolderUri = _lastCustomFolderUri
@@ -139,6 +192,9 @@ class MainActivity : ComponentActivity() {
             saveLocationOption = _saveLocationOption
             notePreview = _notePreview
             fileNameInput = _fileNameInput
+            downloadImages = _downloadImages
+            imagesFolder = _imagesFolder
+            isLoading = _isLoading
 
             when (_currentScreen) {
                 Screen.Splash -> SplashScreen()
@@ -151,16 +207,19 @@ class MainActivity : ComponentActivity() {
                     onOpenSettings = { _currentScreen = Screen.Settings },
                     fileNameInput = _fileNameInput,
                     onFileNameInputChange = { _fileNameInput = it },
-                    notePreview = _notePreview
+                    notePreview = _notePreview,
+                    isLoading = _isLoading
                 )
                 Screen.Settings -> SettingsScreen(
                     initialPath = _savedFolderPath,
                     initialFileNameOption = _fileNameOption,
                     initialSaveLocationOption = _saveLocationOption,
-                    onSave = { _, path, option, locationOption ->
+                    initialDownloadImages = _downloadImages,
+                    onSave = { _, path, option, locationOption, downloadImages ->
                         _savedFolderPath = path
                         _fileNameOption = option
                         _saveLocationOption = locationOption
+                        _downloadImages = downloadImages
                         _currentScreen = Screen.Main
                         if (locationOption == SaveLocationOption.CUSTOM_FOLDER && !path.isNullOrBlank()) {
                             _lastCustomFolderUri = path
@@ -182,8 +241,7 @@ class MainActivity : ComponentActivity() {
             if (!sharedText.isNullOrEmpty()) {
                 Log.d("ShareIntent", "Получена ссылка: $sharedText")
                 urlState.value = sharedText.trim()
-                // Если хотите, запустить сразу обработку:
-                // processUrl() - нужно адаптировать доступ в этом контексте
+                // Можно тут вызвать processUrl() для автоматической обработки ссылки
             }
         }
     }

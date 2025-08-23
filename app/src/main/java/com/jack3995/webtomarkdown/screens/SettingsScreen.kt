@@ -37,11 +37,13 @@ fun SettingsScreen(
     initialPath: String?,
     initialFileNameOption: FileNameOption,
     initialSaveLocationOption: SaveLocationOption,
+    initialDownloadImages: Boolean = true,
     onSave: (
         Boolean,
         String?,
         FileNameOption,
-        SaveLocationOption
+        SaveLocationOption,
+        Boolean
     ) -> Unit
 ) {
     // Состояние для выбора варианта места сохранения (0 — ASK_EVERY_TIME, 1 — DOWNLOADS, 2 — CUSTOM_FOLDER)
@@ -60,6 +62,9 @@ fun SettingsScreen(
 
     // Состояние для варианта формирования имени файла
     var selectedFileNameOption by rememberSaveable { mutableStateOf(initialFileNameOption) }
+    
+    // Состояние для скачивания изображений
+    var downloadImages by rememberSaveable { mutableStateOf(initialDownloadImages) }
 
     // Запуск SAF для выбора папки
     val folderPickerLauncher = rememberLauncherForActivityResult(
@@ -180,6 +185,29 @@ fun SettingsScreen(
                 }
             }
 
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Заголовок блока настроек изображений
+            Text("Настройки изображений:", style = MaterialTheme.typography.titleMedium)
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Переключатель для скачивания изображений
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Скачивать изображения с сайта",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f)
+                )
+                Switch(
+                    checked = downloadImages,
+                    onCheckedChange = { downloadImages = it }
+                )
+            }
+
             Spacer(modifier = Modifier.height(24.dp))
 
             // Кнопка сохранения настроек — вызывает onSave и показывает Snackbar
@@ -196,7 +224,8 @@ fun SettingsScreen(
                     selectedOption == 0,
                     if (selectedOption == 2) folderPath else null,
                     selectedFileNameOption,
-                    saveLoc
+                    saveLoc,
+                    downloadImages
                 )
 
                 coroutineScope.launch {
