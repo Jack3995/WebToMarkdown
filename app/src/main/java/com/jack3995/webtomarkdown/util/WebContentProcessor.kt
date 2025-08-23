@@ -2,7 +2,6 @@ package com.jack3995.webtomarkdown.util
 
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
-import org.jsoup.select.Elements
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
@@ -143,7 +142,6 @@ class WebContentProcessor {
         try {
             val html = WebDownloader().downloadWebPage(url)
             val fileName = when (fileNameOption) {
-                com.jack3995.webtomarkdown.screens.FileNameOption.ASK_EVERY_TIME -> ""
                 com.jack3995.webtomarkdown.screens.FileNameOption.DEFAULT_NAME -> getDefaultFileName()
                 com.jack3995.webtomarkdown.screens.FileNameOption.PAGE_TITLE -> {
                     val title = extractTitle(html)

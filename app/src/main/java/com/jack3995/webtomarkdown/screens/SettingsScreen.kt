@@ -1,12 +1,15 @@
 package com.jack3995.webtomarkdown.screens
 
-import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.net.toUri
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -14,6 +17,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.font.FontWeight
 import kotlinx.coroutines.launch
 
 /**
@@ -32,6 +36,7 @@ import kotlinx.coroutines.launch
  * - fileNameOption - выбранный вариант имени файла,
  * - saveLocationOption - выбранное место сохранения
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     initialPath: String?,
@@ -46,13 +51,12 @@ fun SettingsScreen(
         Boolean
     ) -> Unit
 ) {
-    // Состояние для выбора варианта места сохранения (0 — ASK_EVERY_TIME, 1 — DOWNLOADS, 2 — CUSTOM_FOLDER)
+    // Состояние для выбора варианта места сохранения (0 — ASK_EVERY_TIME, 1 — CUSTOM_FOLDER)
     var selectedOption by rememberSaveable {
         mutableIntStateOf(
             when (initialSaveLocationOption) {
                 SaveLocationOption.ASK_EVERY_TIME -> 0
-                SaveLocationOption.DOWNLOADS -> 1
-                SaveLocationOption.CUSTOM_FOLDER -> 2
+                SaveLocationOption.CUSTOM_FOLDER -> 1
             }
         )
     }
@@ -69,10 +73,10 @@ fun SettingsScreen(
     // Запуск SAF для выбора папки
     val folderPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree(),
-        onResult = { uri: Uri? ->
+        onResult = { uri ->
             uri?.let {
                 folderPath = it.toString()
-                selectedOption = 2
+                selectedOption = 1
             }
         }
     )
@@ -80,159 +84,210 @@ fun SettingsScreen(
     // Snackbar для уведомления о сохранении
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
+    val scrollState = rememberScrollState()
+
+    // Функция для преобразования URI в читаемый путь
+    fun getReadablePath(uriString: String): String {
+        return try {
+            val uri = uriString.toUri()
+            // Пытаемся получить читаемое имя папки
+            val lastSegment = uri.lastPathSegment
+            if (lastSegment != null && lastSegment != "tree") {
+                lastSegment
+            } else {
+                // Если это корневая папка, показываем "Корневая папка"
+                "Корневая папка"
+            }
+        } catch (_: Exception) {
+            uriString
+        }
+    }
+
+    // Функция сохранения настроек
+    fun saveSettings() {
+        val saveLoc = when (selectedOption) {
+            0 -> SaveLocationOption.ASK_EVERY_TIME
+            1 -> SaveLocationOption.CUSTOM_FOLDER
+            else -> SaveLocationOption.ASK_EVERY_TIME
+        }
+
+        onSave(
+            selectedOption == 0,
+            if (selectedOption == 1) folderPath else null,
+            selectedFileNameOption,
+            saveLoc,
+            downloadImages
+        )
+
+        coroutineScope.launch {
+            snackbarHostState.showSnackbar("Настройки сохранены")
+        }
+    }
 
     Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Настройки") },
+                actions = {
+                    IconButton(onClick = { saveSettings() }) {
+                        Icon(Icons.Filled.Save, contentDescription = "Сохранить настройки")
+                    }
+                }
+            )
+        },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
     ) { paddingValues ->
         Column(
             modifier = Modifier
-                .padding(16.dp)
+                .fillMaxSize()
                 .padding(paddingValues)
+                .verticalScroll(scrollState)
         ) {
-
-            // Заголовок блока выбора места сохранения
-            Text("Место сохранения заметки:", style = MaterialTheme.typography.titleMedium)
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Вариант 1: Всегда спрашивать
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .selectable(selected = selectedOption == 0, onClick = { selectedOption = 0 })
-                    .padding(8.dp)
+            Column(
+                modifier = Modifier.padding(16.dp)
             ) {
-                RadioButton(selected = selectedOption == 0, onClick = { selectedOption = 0 })
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Всегда спрашивать")
-            }
-
-            // Вариант 2: Папка «Загрузки»
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .selectable(selected = selectedOption == 1, onClick = { selectedOption = 1 })
-                    .padding(8.dp)
-            ) {
-                RadioButton(selected = selectedOption == 1, onClick = { selectedOption = 1 })
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Папка «Загрузки»")
-            }
-
-            // Вариант 3: Пользовательская папка
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .selectable(selected = selectedOption == 2, onClick = { selectedOption = 2 })
-                    .padding(8.dp)
-            ) {
-                RadioButton(selected = selectedOption == 2, onClick = { selectedOption = 2 })
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("В указанную папку")
-            }
-
-            // Если выбран пользовательский путь, показываем его и кнопку выбора папки
-            if (selectedOption == 2) {
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = folderPath,
-                    onValueChange = { folderPath = it },
+                // Блок 1: Место сохранения заметки
+                Card(
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Выбранный путь") },
-                    readOnly = true,
-                    trailingIcon = {
-                        IconButton(onClick = { folderPickerLauncher.launch(null) }) {
-                            Icon(Icons.Filled.FolderOpen, contentDescription = "Выбрать папку")
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp)
+                    ) {
+                        Text(
+                            "Место сохранения заметки:",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Вариант 1: Всегда спрашивать
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .selectable(selected = selectedOption == 0, onClick = { selectedOption = 0 })
+                                .padding(vertical = 4.dp)
+                        ) {
+                            RadioButton(selected = selectedOption == 0, onClick = { selectedOption = 0 })
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Всегда спрашивать")
+                        }
+
+                        // Вариант 2: Пользовательская папка
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .selectable(selected = selectedOption == 1, onClick = { selectedOption = 1 })
+                                .padding(vertical = 4.dp)
+                        ) {
+                            RadioButton(selected = selectedOption == 1, onClick = { selectedOption = 1 })
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("В указанную папку")
+                        }
+
+                        // Если выбран пользовательский путь, показываем его и кнопку выбора папки
+                        if (selectedOption == 1) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = getReadablePath(folderPath),
+                                onValueChange = { },
+                                modifier = Modifier.fillMaxWidth(),
+                                label = { Text("Выбранный путь") },
+                                readOnly = true,
+                                trailingIcon = {
+                                    IconButton(onClick = { folderPickerLauncher.launch(null) }) {
+                                        Icon(Icons.Filled.FolderOpen, contentDescription = "Выбрать папку")
+                                    }
+                                }
+                            )
                         }
                     }
-                )
-            }
+                }
 
-            Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-            // Заголовок блока выбора имени файла
-            Text("Вариант наименования файла:", style = MaterialTheme.typography.titleMedium)
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Список вариантов имен файлов с радио-кнопками
-            Column {
-                FileNameOption.entries.forEach { option ->
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .selectable(
-                                selected = selectedFileNameOption == option,
-                                onClick = { selectedFileNameOption = option }
-                            )
-                            .padding(8.dp)
+                // Блок 2: Наименование заметки
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp)
                     ) {
-                        RadioButton(
-                            selected = selectedFileNameOption == option,
-                            onClick = { selectedFileNameOption = option }
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            when (option) {
-                                FileNameOption.ASK_EVERY_TIME -> "Спрашивать каждый раз"
-                                FileNameOption.DEFAULT_NAME -> "По умолчанию (текущее имя)"
-                                FileNameOption.PAGE_TITLE -> "Имя страницы (заголовок сайта)"
-                            }
+                            "Наименование заметки:",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
                         )
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Список вариантов имен файлов с радио-кнопками
+                        Column {
+                            FileNameOption.entries.forEach { option ->
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .selectable(
+                                            selected = selectedFileNameOption == option,
+                                            onClick = { selectedFileNameOption = option }
+                                        )
+                                        .padding(vertical = 4.dp)
+                                ) {
+                                    RadioButton(
+                                        selected = selectedFileNameOption == option,
+                                        onClick = { selectedFileNameOption = option }
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                                                            Text(
+                                            when (option) {
+                                                FileNameOption.DEFAULT_NAME -> "По умолчанию (Заметка_ДД.ММ.ГГГГ_ЧЧ.ММ)"
+                                                FileNameOption.PAGE_TITLE -> "Имя страницы (заголовок сайта)"
+                                            }
+                                        )
+                                }
+                            }
+                        }
                     }
                 }
-            }
 
-            Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-            // Заголовок блока настроек изображений
-            Text("Настройки изображений:", style = MaterialTheme.typography.titleMedium)
-            Spacer(modifier = Modifier.height(8.dp))
+                // Блок 3: Настройки изображений
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp)
+                    ) {
+                        Text(
+                            "Настройки изображений:",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
 
-            // Переключатель для скачивания изображений
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Скачивать изображения с сайта",
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.weight(1f)
-                )
-                Switch(
-                    checked = downloadImages,
-                    onCheckedChange = { downloadImages = it }
-                )
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Кнопка сохранения настроек — вызывает onSave и показывает Snackbar
-            Button(onClick = {
-                val saveLoc = when (selectedOption) {
-                    0 -> SaveLocationOption.ASK_EVERY_TIME
-                    1 -> SaveLocationOption.DOWNLOADS
-                    2 -> SaveLocationOption.CUSTOM_FOLDER
-                    else -> SaveLocationOption.ASK_EVERY_TIME
+                        // Переключатель для скачивания изображений
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Скачивать изображения с сайта",
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Switch(
+                                checked = downloadImages,
+                                onCheckedChange = { downloadImages = it }
+                            )
+                        }
+                    }
                 }
-
-                // Вызов колбэка без именованных аргументов
-                onSave(
-                    selectedOption == 0,
-                    if (selectedOption == 2) folderPath else null,
-                    selectedFileNameOption,
-                    saveLoc,
-                    downloadImages
-                )
-
-                coroutineScope.launch {
-                    snackbarHostState.showSnackbar("Настройки сохранены")
-                }
-            }) {
-                Text("Сохранить настройки")
             }
         }
     }
@@ -241,12 +296,10 @@ fun SettingsScreen(
 /**
  * Перечисление вариантов формирования имени файла.
  *
- * - ASK_EVERY_TIME: Спрашивать имя файла вручную каждый раз.
- * - DEFAULT_NAME: Использовать имя по умолчанию, например "Заметка_дата".
+ * - DEFAULT_NAME: Использовать имя по умолчанию, например "Заметка_ДД.ММ.ГГГГ_ЧЧ.ММ".
  * - PAGE_TITLE: Использовать заголовок веб-страницы в качестве имени файла.
  */
 enum class FileNameOption {
-    ASK_EVERY_TIME,
     DEFAULT_NAME,
     PAGE_TITLE
 }
@@ -255,11 +308,9 @@ enum class FileNameOption {
  * Перечисление вариантов места сохранения файла.
  *
  * - ASK_EVERY_TIME: Каждый раз спрашивать папку для сохранения.
- * - DOWNLOADS: Сохранять в системную папку «Загрузки».
  * - CUSTOM_FOLDER: Пользователь указывает конкретную папку.
  */
 enum class SaveLocationOption {
     ASK_EVERY_TIME,
-    DOWNLOADS,
     CUSTOM_FOLDER
 }

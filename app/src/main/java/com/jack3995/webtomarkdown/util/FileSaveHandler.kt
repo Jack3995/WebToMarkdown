@@ -3,7 +3,6 @@ package com.jack3995.webtomarkdown.util
 import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
-import android.os.Environment
 import androidx.core.net.toUri
 import androidx.documentfile.provider.DocumentFile
 import com.jack3995.webtomarkdown.screens.SaveLocationOption
@@ -28,11 +27,6 @@ class FileSaveHandler(private val context: Context, private val contentResolver:
     ) {
         when (saveLocationOption) {
             SaveLocationOption.ASK_EVERY_TIME -> onFolderPickerRequest()
-            SaveLocationOption.DOWNLOADS -> {
-                val dir = getDownloadsDirectory()
-                val success = saveToFileCustomDir(dir, fileName, content, imagesFolder)
-                onSaveResult(success)
-            }
             SaveLocationOption.CUSTOM_FOLDER -> {
                 val uriStr = lastCustomFolderUri
                 if (!uriStr.isNullOrBlank()) {
@@ -80,30 +74,9 @@ class FileSaveHandler(private val context: Context, private val contentResolver:
         return true
     }
 
-    private fun saveToFileCustomDir(dir: File, fileName: String, content: String, imagesFolder: File? = null): Boolean {
-        return try {
-            if (!dir.exists()) dir.mkdirs()
-            val file = File(dir, fileName)
-            file.writeText(content)
-            println("📁 Файл сохранён локально: ${file.absolutePath}")
-            
-            // Сохраняем папку с изображениями, если она есть
-            if (imagesFolder != null && imagesFolder.exists()) {
-                val targetImagesDir = File(dir, imagesFolder.name)
-                copyDirectory(imagesFolder, targetImagesDir)
-                println("📁 Папка с изображениями сохранена: ${targetImagesDir.absolutePath}")
-            }
-            
-            true
-        } catch (e: Exception) {
-            e.printStackTrace()
-            false
-        }
-    }
 
-    private fun getDownloadsDirectory(): File {
-        return Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-    }
+
+
     
     /**
      * Копирует папку с изображениями через SAF
@@ -157,25 +130,7 @@ class FileSaveHandler(private val context: Context, private val contentResolver:
         }
     }
     
-    /**
-     * Копирует директорию рекурсивно
-     */
-    private fun copyDirectory(source: File, destination: File) {
-        if (source.isDirectory) {
-            if (!destination.exists()) {
-                destination.mkdirs()
-            }
-            
-            source.listFiles()?.forEach { file ->
-                val destFile = File(destination, file.name)
-                if (file.isDirectory) {
-                    copyDirectory(file, destFile)
-                } else {
-                    file.copyTo(destFile, overwrite = true)
-                }
-            }
-        }
-    }
+
     
     /**
      * Определяет MIME-тип файла по расширению
