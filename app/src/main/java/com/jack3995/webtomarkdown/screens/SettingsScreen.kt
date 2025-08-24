@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.font.FontWeight
+import androidx.activity.compose.BackHandler
 import kotlinx.coroutines.launch
 
 /**
@@ -122,6 +123,11 @@ fun SettingsScreen(
         coroutineScope.launch {
             snackbarHostState.showSnackbar("Настройки сохранены")
         }
+    }
+
+    // Обработчик кнопки "назад" - сохраняет настройки и возвращается на главный экран
+    BackHandler {
+        saveSettings()
     }
 
     Scaffold(

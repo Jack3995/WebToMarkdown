@@ -10,6 +10,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.ActivityResultLauncher
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import com.jack3995.webtomarkdown.screens.*
 import com.jack3995.webtomarkdown.screens.FileNameOption
 import com.jack3995.webtomarkdown.screens.SaveLocationOption
@@ -143,10 +145,12 @@ class MainActivity : ComponentActivity() {
                             if (data.imagesFolder != null) {
                                 println("📁 Папка с изображениями: ${data.imagesFolder.name}")
                             }
+                            println("✅ Страница успешно обработана")
                         } else {
                             _notePreview = "Ошибка загрузки страницы: ${result.exceptionOrNull()?.message}"
                             _fileNameInput = ""
                             _imagesFolder = null
+                            println("❌ Ошибка обработки страницы: ${result.exceptionOrNull()?.message}")
                         }
                     }
                 }
@@ -185,9 +189,11 @@ class MainActivity : ComponentActivity() {
                         folderPickerLauncher.launch(null)
                     },
                     onSaveResult = { success ->
-                        if (!success) println("❗ Ошибка сохранения заметки")
-                        else println("✅ Заметка успешно сохранена")
-                        // Можно добавить уведомление об успехе/ошибке
+                        if (!success) {
+                            println("❗ Ошибка сохранения заметки")
+                        } else {
+                            println("✅ Заметка успешно сохранена")
+                        }
                     },
                     imagesFolder = _imagesFolder
                 )
@@ -210,45 +216,59 @@ class MainActivity : ComponentActivity() {
             imagesFolder = _imagesFolder
             isLoading = _isLoading
 
-            when (_currentScreen) {
-                Screen.Splash -> SplashScreen()
-                Screen.Main -> MainScreen(
-                    urlState = _urlState.value,
-                    onUrlChange = { _urlState.value = it },
-                    onProcessClick = { processUrl() },
-                    onSaveClick = { saveNote() },
-                    onClearClick = { clearFields() },
-                    onOpenSettings = { _currentScreen = Screen.Settings },
-                    fileNameInput = _fileNameInput,
-                    onFileNameInputChange = { _fileNameInput = it },
-                    notePreview = _notePreview,
-                    isLoading = _isLoading
-                )
-                Screen.Settings -> SettingsScreen(
-                    initialPath = _savedFolderPath,
-                    initialFileNameOption = _fileNameOption,
-                    initialSaveLocationOption = _saveLocationOption,
-                    initialDownloadImages = _downloadImages,
-                    onSave = { _, path, option, locationOption, downloadImages ->
-                        _savedFolderPath = path
-                        _fileNameOption = option
-                        _saveLocationOption = locationOption
-                        _downloadImages = downloadImages
-                        
-                        // Сохраняем настройки в SharedPreferences
-                        settingsManager.saveAllSettings(
-                            locationOption,
-                            path,
-                            option,
-                            downloadImages
-                        )
-                        
-                        _currentScreen = Screen.Main
-                        if (locationOption == SaveLocationOption.CUSTOM_FOLDER && !path.isNullOrBlank()) {
-                            _lastCustomFolderUri = path
+            AnimatedContent(
+                targetState = _currentScreen,
+                transitionSpec = {
+                    slideInHorizontally(
+                        initialOffsetX = { if (targetState > initialState) it else -it },
+                        animationSpec = tween(300)
+                    ) + fadeIn(animationSpec = tween(300)) togetherWith slideOutHorizontally(
+                        targetOffsetX = { if (targetState > initialState) -it else it },
+                        animationSpec = tween(300)
+                    ) + fadeOut(animationSpec = tween(300))
+                },
+                label = "screen_transition"
+            ) { screen ->
+                when (screen) {
+                    Screen.Splash -> SplashScreen()
+                    Screen.Main -> MainScreen(
+                        urlState = _urlState.value,
+                        onUrlChange = { _urlState.value = it },
+                        onProcessClick = { processUrl() },
+                        onSaveClick = { saveNote() },
+                        onClearClick = { clearFields() },
+                        onOpenSettings = { _currentScreen = Screen.Settings },
+                        fileNameInput = _fileNameInput,
+                        onFileNameInputChange = { _fileNameInput = it },
+                        notePreview = _notePreview,
+                        isLoading = _isLoading
+                    )
+                    Screen.Settings -> SettingsScreen(
+                        initialPath = _savedFolderPath,
+                        initialFileNameOption = _fileNameOption,
+                        initialSaveLocationOption = _saveLocationOption,
+                        initialDownloadImages = _downloadImages,
+                        onSave = { _, path, option, locationOption, downloadImages ->
+                            _savedFolderPath = path
+                            _fileNameOption = option
+                            _saveLocationOption = locationOption
+                            _downloadImages = downloadImages
+                            
+                            // Сохраняем настройки в SharedPreferences
+                            settingsManager.saveAllSettings(
+                                locationOption,
+                                path,
+                                option,
+                                downloadImages
+                            )
+                            
+                            _currentScreen = Screen.Main
+                            if (locationOption == SaveLocationOption.CUSTOM_FOLDER && !path.isNullOrBlank()) {
+                                _lastCustomFolderUri = path
+                            }
                         }
-                    }
-                )
+                    )
+                }
             }
         }
     }
