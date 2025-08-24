@@ -15,6 +15,7 @@ import com.jack3995.webtomarkdown.screens.FileNameOption
 import com.jack3995.webtomarkdown.screens.SaveLocationOption
 import com.jack3995.webtomarkdown.util.WebContentProcessor
 import com.jack3995.webtomarkdown.util.FileSaveHandler
+import com.jack3995.webtomarkdown.util.SettingsManager
 import kotlinx.coroutines.*
 import androidx.compose.material3.ExperimentalMaterial3Api
 import java.io.File
@@ -29,6 +30,7 @@ class MainActivity : ComponentActivity() {
 
     private val processor = WebContentProcessor()
     private lateinit var fileSaveHandler: FileSaveHandler
+    private lateinit var settingsManager: SettingsManager
     private lateinit var folderPickerLauncher: ActivityResultLauncher<Uri?>
 
     private var fileNameInput by mutableStateOf("")
@@ -56,9 +58,21 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         fileSaveHandler = FileSaveHandler(this, contentResolver)
+        settingsManager = SettingsManager(this)
+        
+        // Загружаем сохраненные настройки
+        fileNameOption = settingsManager.getFileNameOption()
+        saveLocationOption = settingsManager.getSaveLocationOption()
+        lastCustomFolderUri = settingsManager.getCustomFolderPath()
+        downloadImages = settingsManager.getDownloadImages()
 
         folderPickerLauncher = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
             lastCustomFolderUri = uri?.toString()
+            // Сохраняем выбранную папку в настройки
+            if (uri != null) {
+                settingsManager.saveCustomFolderPath(uri.toString())
+            }
+            
             // Используем сохраненные значения для сохранения файла
             if (uri != null) {
                 println("📁 Выбрана папка: $uri")
@@ -81,15 +95,15 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             var _currentScreen by rememberSaveable { mutableStateOf(currentScreen) }
-            var _savedFolderPath by rememberSaveable { mutableStateOf(savedFolderPath) }
-            var _lastCustomFolderUri by rememberSaveable { mutableStateOf(lastCustomFolderUri) }
+            var _savedFolderPath by rememberSaveable { mutableStateOf(settingsManager.getCustomFolderPath()) }
+            var _lastCustomFolderUri by rememberSaveable { mutableStateOf(settingsManager.getCustomFolderPath()) }
 
             val _urlState = remember { mutableStateOf(urlState.value) }
-            var _fileNameOption by rememberSaveable { mutableStateOf(fileNameOption) }
-            var _saveLocationOption by rememberSaveable { mutableStateOf(saveLocationOption) }
+            var _fileNameOption by rememberSaveable { mutableStateOf(settingsManager.getFileNameOption()) }
+            var _saveLocationOption by rememberSaveable { mutableStateOf(settingsManager.getSaveLocationOption()) }
             var _notePreview by remember { mutableStateOf(notePreview) }
             var _fileNameInput by remember { mutableStateOf(fileNameInput) }
-            var _downloadImages by remember { mutableStateOf(downloadImages) }
+            var _downloadImages by rememberSaveable { mutableStateOf(settingsManager.getDownloadImages()) }
             var _imagesFolder by remember { mutableStateOf<File?>(imagesFolder) }
             var _isLoading by remember { mutableStateOf(isLoading) }
 
@@ -220,6 +234,15 @@ class MainActivity : ComponentActivity() {
                         _fileNameOption = option
                         _saveLocationOption = locationOption
                         _downloadImages = downloadImages
+                        
+                        // Сохраняем настройки в SharedPreferences
+                        settingsManager.saveAllSettings(
+                            locationOption,
+                            path,
+                            option,
+                            downloadImages
+                        )
+                        
                         _currentScreen = Screen.Main
                         if (locationOption == SaveLocationOption.CUSTOM_FOLDER && !path.isNullOrBlank()) {
                             _lastCustomFolderUri = path
