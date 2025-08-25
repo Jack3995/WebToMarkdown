@@ -38,6 +38,13 @@ android {
     }
 }
 
+android.applicationVariants.all {
+    outputs.all {
+        val output = this as? com.android.build.gradle.internal.api.BaseVariantOutputImpl
+        output?.outputFileName = "WebToMarkdown-${versionName}(${versionCode})-${name}.apk"
+    }
+}
+
 // Новый блок настроек Kotlin для замены kotlinOptions
 kotlin {
     // Устанавливаем JVM-таргет через jvmToolchain
@@ -67,7 +74,7 @@ dependencies {
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
     implementation("com.squareup.okhttp3:okhttp:5.1.0")  // Для загрузки HTML
-    implementation("org.jsoup:jsoup:1.21.1")             // Для парсинга HTML
+    implementation("org.jsoup:jsoup:1.21.2")             // Для парсинга HTML
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     implementation("androidx.compose.material:material-icons-extended:1.7.8")
