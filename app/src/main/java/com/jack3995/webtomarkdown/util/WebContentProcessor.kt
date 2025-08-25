@@ -16,18 +16,24 @@ class WebContentProcessor {
         val imagesFolder: File? = null
     )
 
+    private val patternProcessor = PatternProcessor()
+
+    fun getSupportedPatternDomains(): List<String> = patternProcessor.getSupportedDomains()
+
     // Конвертирует HTML в markdown с поддержкой изображений
     suspend fun convertHtmlToMarkdownWithImages(
         html: String, 
         baseUrl: String, 
-        imagesFolder: File
+        imagesFolder: File,
+        usePatterns: Boolean
     ): String {
         val doc = Jsoup.parse(html)
-        doc.select("script, style, iframe, noscript, .share-button, .like-button, button").remove()
+        val root = if (usePatterns) (patternProcessor.tryExtract(baseUrl, doc) ?: doc.body()) else doc.body()
+        root.select("script, style, iframe, noscript, .share-button, .like-button, button").remove()
         
         // Обрабатываем изображения
         val imageDownloader = ImageDownloader()
-        val imageElements = doc.select("img")
+        val imageElements = root.select("img")
         
         println("🖼️ Найдено изображений на странице: ${imageElements.size}")
         
@@ -59,10 +65,9 @@ class WebContentProcessor {
             }
         }
         
-        val body = doc.body()
         val sb = StringBuilder()
 
-        for (element in body.children()) {
+        for (element in root.children()) {
             sb.append(elementToMarkdown(element))
             sb.append("\n\n")
         }
@@ -71,13 +76,13 @@ class WebContentProcessor {
     }
 
     // Конвертирует HTML в markdown, фильтруя лишние элементы (старая версия без изображений)
-    fun convertHtmlToMarkdown(html: String): String {
+    fun convertHtmlToMarkdown(html: String, baseUrl: String, usePatterns: Boolean): String {
         val doc = Jsoup.parse(html)
-        doc.select("script, style, iframe, noscript, .share-button, .like-button, button").remove()
-        val body = doc.body()
+        val root = if (usePatterns) (patternProcessor.tryExtract(baseUrl, doc) ?: doc.body()) else doc.body()
+        root.select("script, style, iframe, noscript, .share-button, .like-button, button").remove()
         val sb = StringBuilder()
 
-        for (element in body.children()) {
+        for (element in root.children()) {
             sb.append(elementToMarkdown(element))
             sb.append("\n\n")
         }
@@ -94,8 +99,8 @@ class WebContentProcessor {
         "h5" -> "##### ${element.text()}"
         "h6" -> "###### ${element.text()}"
         "p" -> element.text()
-        "ul" -> element.children().joinToString("\n") { "- ${it.text()}" }
-        "ol" -> element.children().mapIndexed { i, li -> "${i + 1}. ${li.text()}" }.joinToString("\n")
+        "ul" -> element.children().joinToString("\n") { child -> "- ${child.text()}" }
+        "ol" -> element.children().mapIndexed { index, li -> "${index + 1}. ${li.text()}" }.joinToString("\n")
         "a" -> "[${element.text()}](${element.attr("href")})"
         "b", "strong" -> "**${element.text()}**"
         "i", "em" -> "*${element.text()}*"
@@ -104,7 +109,7 @@ class WebContentProcessor {
             val alt = element.attr("alt").ifBlank { "image" }
             "![$alt]($src)"
         }
-        else -> if (element.children().isNotEmpty()) element.children().joinToString("\n") { elementToMarkdown(it) } else element.text()
+        else -> if (element.children().isNotEmpty()) element.children().joinToString("\n") { child -> elementToMarkdown(child) } else element.text()
     }
 
     // Безопасно формирует имя файла
@@ -137,7 +142,8 @@ class WebContentProcessor {
     suspend fun processPage(
         url: String,
         fileNameOption: com.jack3995.webtomarkdown.screens.FileNameOption,
-        downloadImages: Boolean = true
+        downloadImages: Boolean = true,
+        usePatterns: Boolean = true
     ): Result<ProcessResult> = withContext(Dispatchers.IO) {
         try {
             val html = WebDownloader().downloadWebPage(url)
@@ -149,7 +155,7 @@ class WebContentProcessor {
                 }
             }
             
-            val markdown = if (downloadImages && fileName.isNotBlank()) {
+            val markdownBody = if (downloadImages && fileName.isNotBlank()) {
                 println("🖼️ Скачивание изображений включено")
                 
                 // Создаем папку для изображений во временной директории
@@ -164,10 +170,20 @@ class WebContentProcessor {
                     println("📁 Папка для изображений уже существует: ${imagesFolder.absolutePath}")
                 }
                 
-                convertHtmlToMarkdownWithImages(html, url, imagesFolder)
+                convertHtmlToMarkdownWithImages(html, url, imagesFolder, usePatterns)
             } else {
                 println("⚠️ Скачивание изображений отключено")
-                convertHtmlToMarkdown(html)
+                convertHtmlToMarkdown(html, url, usePatterns)
+            }
+
+            val markdown = buildString {
+                append(markdownBody)
+                append("\n\n—\nИсточник: ")
+                append("[")
+                append(url)
+                append("](")
+                append(url)
+                append(")")
             }
             
             val imagesFolder = if (downloadImages && fileName.isNotBlank()) {

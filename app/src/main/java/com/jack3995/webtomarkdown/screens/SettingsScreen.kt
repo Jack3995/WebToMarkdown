@@ -10,6 +10,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -44,11 +45,14 @@ fun SettingsScreen(
     initialFileNameOption: FileNameOption,
     initialSaveLocationOption: SaveLocationOption,
     initialDownloadImages: Boolean = true,
+    initialUsePatterns: Boolean = true,
+    supportedDomains: List<String> = emptyList(),
     onSave: (
         Boolean,
         String?,
         FileNameOption,
         SaveLocationOption,
+        Boolean,
         Boolean
     ) -> Unit
 ) {
@@ -70,6 +74,9 @@ fun SettingsScreen(
     
     // Состояние для скачивания изображений
     var downloadImages by rememberSaveable { mutableStateOf(initialDownloadImages) }
+
+    // Состояние для использования паттернов
+    var usePatterns by rememberSaveable { mutableStateOf(initialUsePatterns) }
 
     // Запуск SAF для выбора папки
     val folderPickerLauncher = rememberLauncherForActivityResult(
@@ -117,7 +124,8 @@ fun SettingsScreen(
             if (selectedOption == 1) folderPath else null,
             selectedFileNameOption,
             saveLoc,
-            downloadImages
+            downloadImages,
+            usePatterns
         )
 
         coroutineScope.launch {
@@ -247,12 +255,12 @@ fun SettingsScreen(
                                         onClick = { selectedFileNameOption = option }
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
-                                                                            Text(
-                                            when (option) {
-                                                FileNameOption.DEFAULT_NAME -> "По умолчанию (Заметка_ДД.ММ.ГГГГ_ЧЧ.ММ)"
-                                                FileNameOption.PAGE_TITLE -> "Имя страницы (заголовок сайта)"
-                                            }
-                                        )
+                                    Text(
+                                        when (option) {
+                                            FileNameOption.DEFAULT_NAME -> "По умолчанию (Заметка_ДД.ММ.ГГГГ_ЧЧ.ММ)"
+                                            FileNameOption.PAGE_TITLE -> "Имя страницы (заголовок сайта)"
+                                        }
+                                    )
                                 }
                             }
                         }
@@ -261,7 +269,7 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Блок 3: Настройки изображений
+                // Блок 3: Обработка контента
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -270,11 +278,49 @@ fun SettingsScreen(
                         modifier = Modifier.padding(16.dp)
                     ) {
                         Text(
-                            "Настройки изображений:",
+                            "Обработка контента:",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
                         Spacer(modifier = Modifier.height(12.dp))
+
+                        // Переключатель для использования паттернов сайтов + инфо-иконка
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Использовать паттерны обработки сайтов",
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.weight(1f)
+                            )
+                            var showInfo by rememberSaveable { mutableStateOf(false) }
+                            IconButton(onClick = { showInfo = true }) {
+                                Icon(Icons.Filled.Info, contentDescription = "Список поддерживаемых сайтов")
+                            }
+                            Switch(
+                                checked = usePatterns,
+                                onCheckedChange = { usePatterns = it }
+                            )
+
+                            if (showInfo) {
+                                AlertDialog(
+                                    onDismissRequest = { showInfo = false },
+                                    confirmButton = {
+                                        TextButton(onClick = { showInfo = false }) {
+                                            Text("OK")
+                                        }
+                                    },
+                                    title = { Text("Поддерживаемые сайты") },
+                                    text = {
+                                        val listText = if (supportedDomains.isNotEmpty()) supportedDomains.joinToString(", ") else "Пока нет"
+                                        Text(listText)
+                                    }
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
 
                         // Переключатель для скачивания изображений
                         Row(
@@ -292,6 +338,8 @@ fun SettingsScreen(
                                 onCheckedChange = { downloadImages = it }
                             )
                         }
+
+                        // Убрали сворачиваемую подпись, используем инфо-иконку и диалог
                     }
                 }
             }

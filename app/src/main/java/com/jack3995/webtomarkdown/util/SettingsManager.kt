@@ -25,6 +25,7 @@ class SettingsManager(context: Context) {
         private const val KEY_CUSTOM_FOLDER_PATH = "custom_folder_path"
         private const val KEY_FILE_NAME_OPTION = "file_name_option"
         private const val KEY_DOWNLOAD_IMAGES = "download_images"
+        private const val KEY_USE_PATTERNS = "use_site_patterns"
     }
     
     /**
@@ -81,6 +82,13 @@ class SettingsManager(context: Context) {
     fun getDownloadImages(): Boolean {
         return sharedPreferences.getBoolean(KEY_DOWNLOAD_IMAGES, true)
     }
+
+    /**
+     * Загружает настройку использования паттернов сайтов
+     */
+    fun getUsePatterns(): Boolean {
+        return sharedPreferences.getBoolean(KEY_USE_PATTERNS, true)
+    }
     
     /**
      * Сохраняет все настройки одновременно
@@ -89,13 +97,15 @@ class SettingsManager(context: Context) {
         saveLocationOption: SaveLocationOption,
         customFolderPath: String?,
         fileNameOption: FileNameOption,
-        downloadImages: Boolean
+        downloadImages: Boolean,
+        usePatterns: Boolean
     ) {
         sharedPreferences.edit {
             putString(KEY_SAVE_LOCATION_OPTION, saveLocationOption.name)
             putString(KEY_CUSTOM_FOLDER_PATH, customFolderPath)
             putString(KEY_FILE_NAME_OPTION, fileNameOption.name)
             putBoolean(KEY_DOWNLOAD_IMAGES, downloadImages)
+            putBoolean(KEY_USE_PATTERNS, usePatterns)
         }
     }
 }

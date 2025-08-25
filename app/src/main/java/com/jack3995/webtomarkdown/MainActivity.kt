@@ -44,6 +44,7 @@ class MainActivity : ComponentActivity() {
     private var lastCustomFolderUri by mutableStateOf<String?>(null)
 
     private var downloadImages by mutableStateOf(true)
+    private var usePatterns by mutableStateOf(true)
     private var imagesFolder by mutableStateOf<File?>(null) // Инициализировано с корректным типом
     private var isLoading by mutableStateOf(false)
 
@@ -67,6 +68,7 @@ class MainActivity : ComponentActivity() {
         saveLocationOption = settingsManager.getSaveLocationOption()
         lastCustomFolderUri = settingsManager.getCustomFolderPath()
         downloadImages = settingsManager.getDownloadImages()
+        usePatterns = settingsManager.getUsePatterns()
 
         folderPickerLauncher = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
             lastCustomFolderUri = uri?.toString()
@@ -106,8 +108,10 @@ class MainActivity : ComponentActivity() {
             var _notePreview by remember { mutableStateOf(notePreview) }
             var _fileNameInput by remember { mutableStateOf(fileNameInput) }
             var _downloadImages by rememberSaveable { mutableStateOf(settingsManager.getDownloadImages()) }
+            var _usePatterns by rememberSaveable { mutableStateOf(settingsManager.getUsePatterns()) }
             var _imagesFolder by remember { mutableStateOf<File?>(imagesFolder) }
             var _isLoading by remember { mutableStateOf(isLoading) }
+            val supportedDomains by remember { mutableStateOf(processor.getSupportedPatternDomains()) }
 
             fun clearFields() {
                 _urlState.value = ""
@@ -134,7 +138,7 @@ class MainActivity : ComponentActivity() {
                 _notePreview = ""
 
                 CoroutineScope(Dispatchers.IO).launch {
-                    val result = processor.processPage(url, _fileNameOption, _downloadImages)
+                    val result = processor.processPage(url, _fileNameOption, _downloadImages, _usePatterns)
                     withContext(Dispatchers.Main) {
                         _isLoading = false
                         if (result.isSuccess) {
@@ -213,6 +217,7 @@ class MainActivity : ComponentActivity() {
             notePreview = _notePreview
             fileNameInput = _fileNameInput
             downloadImages = _downloadImages
+            usePatterns = _usePatterns
             imagesFolder = _imagesFolder
             isLoading = _isLoading
 
@@ -248,18 +253,22 @@ class MainActivity : ComponentActivity() {
                         initialFileNameOption = _fileNameOption,
                         initialSaveLocationOption = _saveLocationOption,
                         initialDownloadImages = _downloadImages,
-                        onSave = { _, path, option, locationOption, downloadImages ->
+                        initialUsePatterns = _usePatterns,
+                        supportedDomains = supportedDomains,
+                        onSave = { _, path, option, locationOption, downloadImages, usePatterns ->
                             _savedFolderPath = path
                             _fileNameOption = option
                             _saveLocationOption = locationOption
                             _downloadImages = downloadImages
+                            _usePatterns = usePatterns
                             
                             // Сохраняем настройки в SharedPreferences
                             settingsManager.saveAllSettings(
                                 locationOption,
                                 path,
                                 option,
-                                downloadImages
+                                downloadImages,
+                                usePatterns
                             )
                             
                             _currentScreen = Screen.Main
