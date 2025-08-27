@@ -91,6 +91,7 @@ class WebContentProcessor {
     }
 
     // Рекурсивно преобразует HTML элемент в markdown
+    // ВАЖНО: не терять собственный текст узла при наличии дочерних элементов
     private fun elementToMarkdown(element: Element): String = when (element.tagName().lowercase()) {
         "h1" -> "# ${element.text()}"
         "h2" -> "## ${element.text()}"
@@ -99,6 +100,37 @@ class WebContentProcessor {
         "h5" -> "##### ${element.text()}"
         "h6" -> "###### ${element.text()}"
         "p" -> element.text()
+        // inline code
+        "code" -> {
+            val parentTag = element.parent()?.tagName()?.lowercase()
+            if (parentTag == "pre") {
+                // handled in pre
+                ""
+            } else {
+                "`${element.text()}`"
+            }
+        }
+        // preformatted block code
+        "pre" -> buildString {
+            val insideCode = element.selectFirst("code")
+            val raw = insideCode?.wholeText()?.ifBlank { insideCode.text() }
+                ?: element.wholeText().ifBlank { element.text() }
+            append("```\n")
+            append(raw.trimEnd())
+            append("\n```")
+        }
+        // div и span могут содержать и собственный текст, и вложенные элементы — собираем всё
+        "div", "span", "section", "article" -> buildString {
+            val own = element.ownText().trim()
+            if (own.isNotEmpty()) append(own)
+            for (child in element.children()) {
+                val childMd = elementToMarkdown(child)
+                if (childMd.isNotBlank()) {
+                    if (isNotEmpty()) append("\n")
+                    append(childMd)
+                }
+            }
+        }
         "ul" -> element.children().joinToString("\n") { child -> "- ${child.text()}" }
         "ol" -> element.children().mapIndexed { index, li -> "${index + 1}. ${li.text()}" }.joinToString("\n")
         "a" -> "[${element.text()}](${element.attr("href")})"
@@ -109,7 +141,20 @@ class WebContentProcessor {
             val alt = element.attr("alt").ifBlank { "image" }
             "![$alt]($src)"
         }
-        else -> if (element.children().isNotEmpty()) element.children().joinToString("\n") { child -> elementToMarkdown(child) } else element.text()
+        "blockquote" -> "> [!NOTE]\n" + element.text().lines().joinToString("\n") { "> $it" }
+        "br" -> ""
+        else -> buildString {
+            val own = element.ownText().trim()
+            if (own.isNotEmpty()) append(own)
+            for (child in element.children()) {
+                val childMd = elementToMarkdown(child)
+                if (childMd.isNotBlank()) {
+                    if (isNotEmpty()) append("\n")
+                    append(childMd)
+                }
+            }
+            if (isEmpty()) append(element.text())
+        }
     }
 
     // Безопасно формирует имя файла
@@ -134,7 +179,11 @@ class WebContentProcessor {
     private fun generateImageFileName(imageUrl: String, altText: String): String {
         val sanitizedAlt = sanitizeFilename(altText).take(30)
         val timestamp = System.currentTimeMillis()
-        return "${sanitizedAlt}_$timestamp"
+        val knownExt = setOf("png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "avif", "heic")
+        val fromUrl = imageUrl.substringAfterLast('/', imageUrl)
+        val ext = fromUrl.substringAfterLast('.', "").lowercase().take(5)
+        val safeExt = if (ext in knownExt) ext else "png"
+        return "${sanitizedAlt}_$timestamp.$safeExt"
     }
 
     // Основная функция обработки страницы по url и опции имени файла
