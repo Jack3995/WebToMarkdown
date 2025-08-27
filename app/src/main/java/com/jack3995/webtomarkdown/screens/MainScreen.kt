@@ -15,6 +15,7 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalClipboardManager
 import kotlinx.coroutines.launch
@@ -82,12 +83,16 @@ fun MainScreen(
                             onProcessClick()
                             showNotification("Начинаем обработку страницы...")
                         },
-                        modifier = Modifier.weight(1f).height(48.dp),
+                        modifier = Modifier.weight(1f).height(64.dp),
                         enabled = urlState.isNotBlank() && !isLoading
                     ) {
-                        Icon(Icons.Filled.Refresh, contentDescription = null)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Обработать")
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Filled.Refresh, contentDescription = null)
+                            Text(
+                                "Обработать",
+                                maxLines = 2
+                            )
+                        }
                     }
                     
                     AnimatedButton(
@@ -95,12 +100,16 @@ fun MainScreen(
                             onClearClick()
                             showNotification("Поля очищены")
                         },
-                        modifier = Modifier.weight(1f).height(48.dp),
+                        modifier = Modifier.weight(1f).height(64.dp),
                         enabled = !isLoading
                     ) {
-                        Icon(Icons.Filled.Clear, contentDescription = null)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Очистить")
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Filled.Clear, contentDescription = null)
+                            Text(
+                                "Очистить",
+                                maxLines = 2
+                            )
+                        }
                     }
                     
                     AnimatedButton(
@@ -108,12 +117,16 @@ fun MainScreen(
                             onSaveClick()
                             showNotification("Файл сохранен")
                         },
-                        modifier = Modifier.weight(1f).height(48.dp),
+                        modifier = Modifier.weight(1f).height(64.dp),
                         enabled = notePreview.isNotBlank() && !isLoading
                     ) {
-                        Icon(Icons.Filled.Save, contentDescription = null)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Сохранить")
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Filled.Save, contentDescription = null)
+                            Text(
+                                "Сохранить",
+                                maxLines = 2
+                            )
+                        }
                     }
                 }
             }
@@ -130,18 +143,25 @@ fun MainScreen(
             Row(
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                TextField(
+                OutlinedTextField(
                     value = urlState,
                     onValueChange = onUrlChange,
                     label = { Text("Введите URL сайта") },
+                    placeholder = { Text("https://example.com/article") },
+                    leadingIcon = { Icon(Icons.Filled.Link, contentDescription = null) },
+                    singleLine = true,
                     modifier = Modifier.weight(1f)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 AnimatedButton(
                     onClick = { pasteFromClipboard() },
-                    modifier = Modifier.size(48.dp)
+                    modifier = Modifier.size(50.dp)
                 ) {
-                    Icon(Icons.Filled.ContentPaste, contentDescription = "Вставить из буфера")
+                    Icon(
+                        Icons.Filled.ContentPaste,
+                        contentDescription = "Вставить из буфера",
+                        modifier = Modifier.size(25.dp)
+                    )
                 }
             }
             Spacer(modifier = Modifier.height(8.dp))
@@ -186,10 +206,14 @@ fun MainScreen(
                 exit = fadeOut() + shrinkVertically()
             ) {
                 Column {
-                    TextField(
+                    OutlinedTextField(
                         value = fileNameInput,
                         onValueChange = onFileNameInputChange,
                         label = { Text("Имя файла") },
+                        placeholder = { Text("Заметка_01.01.2025_12.00") },
+                        leadingIcon = { Icon(Icons.Filled.Description, contentDescription = null) },
+                        singleLine = false,
+                        maxLines = 4,
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(modifier = Modifier.height(12.dp))
@@ -245,6 +269,7 @@ fun AnimatedButton(
         modifier = modifier.graphicsLayer(scaleX = scale, scaleY = scale),
         enabled = enabled,
         interactionSource = interactionSource,
+        shape = RoundedCornerShape(8.dp),
         content = content
     )
 }
