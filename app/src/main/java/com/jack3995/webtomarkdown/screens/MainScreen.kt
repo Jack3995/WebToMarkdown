@@ -72,60 +72,111 @@ fun MainScreen(
                 }
             )
         },
-        bottomBar = {
-            BottomAppBar {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                bottomBar = {
+            BottomAppBar(
+                modifier = Modifier.height(140.dp)
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    AnimatedButton(
-                        onClick = {
-                            onProcessClick()
-                            showNotification("Начинаем обработку страницы...")
-                        },
-                        modifier = Modifier.weight(1f).height(64.dp),
-                        enabled = urlState.isNotBlank() && !isLoading
+                    // Первый ряд: Вставить | Очистить
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Filled.Refresh, contentDescription = null)
-                            Text(
-                                "Обработать",
-                                maxLines = 2
-                            )
+                        AnimatedButton(
+                            onClick = {
+                                pasteFromClipboard()
+                                showNotification("URL вставлен из буфера обмена")
+                            },
+                            modifier = Modifier.weight(1f).height(50.dp),
+                            enabled = !isLoading
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Filled.ContentPaste, 
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Вставить")
+                            }
+                        }
+                        
+                        AnimatedButton(
+                            onClick = {
+                                onClearClick()
+                                showNotification("Поля очищены")
+                            },
+                            modifier = Modifier.weight(1f).height(50.dp),
+                            enabled = !isLoading
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Filled.Clear, 
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Очистить")
+                            }
                         }
                     }
                     
-                    AnimatedButton(
-                        onClick = {
-                            onClearClick()
-                            showNotification("Поля очищены")
-                        },
-                        modifier = Modifier.weight(1f).height(64.dp),
-                        enabled = !isLoading
+                    // Второй ряд: Обработать | Сохранить
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Filled.Clear, contentDescription = null)
-                            Text(
-                                "Очистить",
-                                maxLines = 2
-                            )
+                        AnimatedButton(
+                            onClick = {
+                                onProcessClick()
+                                showNotification("Начинаем обработку страницы...")
+                            },
+                            modifier = Modifier.weight(1f).height(56.dp),
+                            enabled = urlState.isNotBlank() && !isLoading
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Filled.Refresh, 
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Обработать")
+                            }
                         }
-                    }
-                    
-                    AnimatedButton(
-                        onClick = {
-                            onSaveClick()
-                            showNotification("Файл сохранен")
-                        },
-                        modifier = Modifier.weight(1f).height(64.dp),
-                        enabled = notePreview.isNotBlank() && !isLoading
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Filled.Save, contentDescription = null)
-                            Text(
-                                "Сохранить",
-                                maxLines = 2
-                            )
+                        
+                        AnimatedButton(
+                            onClick = {
+                                onSaveClick()
+                                showNotification("Файл сохранен")
+                            },
+                            modifier = Modifier.weight(1f).height(56.dp),
+                            enabled = notePreview.isNotBlank() && !isLoading
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Filled.Save, 
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Сохранить")
+                            }
                         }
                     }
                 }
@@ -139,31 +190,16 @@ fun MainScreen(
                 .padding(innerPadding)
                 .padding(horizontal = 16.dp)
         ) {
-            // Поле URL с кнопкой вставки
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                OutlinedTextField(
-                    value = urlState,
-                    onValueChange = onUrlChange,
-                    label = { Text("Введите URL сайта") },
-                    placeholder = { Text("https://example.com/article") },
-                    leadingIcon = { Icon(Icons.Filled.Link, contentDescription = null) },
-                    singleLine = true,
-                    modifier = Modifier.weight(1f)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                AnimatedButton(
-                    onClick = { pasteFromClipboard() },
-                    modifier = Modifier.size(50.dp)
-                ) {
-                    Icon(
-                        Icons.Filled.ContentPaste,
-                        contentDescription = "Вставить из буфера",
-                        modifier = Modifier.size(25.dp)
-                    )
-                }
-            }
+            // Поле URL
+            OutlinedTextField(
+                value = urlState,
+                onValueChange = onUrlChange,
+                label = { Text("Введите URL сайта") },
+                placeholder = { Text("https://example.com/article") },
+                leadingIcon = { Icon(Icons.Filled.Link, contentDescription = null) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
             Spacer(modifier = Modifier.height(8.dp))
 
             // Анимированная индикация загрузки

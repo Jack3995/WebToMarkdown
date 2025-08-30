@@ -21,7 +21,8 @@ class PatternProcessor {
         QnaHabrPattern(),
         HabrPattern(),
         PikabuPattern(),
-        IxbtPattern()
+        IxbtPattern(),
+        SkillboxPattern()
     )
 
     fun tryExtract(url: String, doc: Document): Element? {
@@ -57,11 +58,8 @@ class PatternProcessor {
 
     private class IxbtPattern : SitePattern {
         override val name: String = "iXBT"
-        override val domains: List<String> = listOf("ixbt.com", "www.ixbt.com")
-        override fun canHandle(url: String): Boolean = try {
-            val host = URI(url).host?.lowercase()
-            host == "ixbt.com" || host == "www.ixbt.com"
-        } catch (_: Exception) { false }
+        override val domains: List<String> = listOf("ixbt.com")
+        override fun canHandle(url: String): Boolean = try { URI(url).host?.lowercase() == "ixbt.com" } catch (_: Exception) { false }
         override fun extract(doc: Document, url: String): Element? =
             doc.selectFirst("div.b-article__content[itemprop=articleBody]#main-pagecontent__div")
     }
@@ -103,6 +101,13 @@ class PatternProcessor {
                 null
             }
         }
+    }
+
+    private class SkillboxPattern : SitePattern {
+        override val name: String = "Skillbox"
+        override val domains: List<String> = listOf("skillbox.ru")
+        override fun canHandle(url: String): Boolean = try { URI(url).host?.lowercase() == "skillbox.ru" } catch (_: Exception) { false }
+        override fun extract(doc: Document, url: String): Element? = doc.selectFirst("div.article-detail-text__setka[data-detail-text]")
     }
 }
 

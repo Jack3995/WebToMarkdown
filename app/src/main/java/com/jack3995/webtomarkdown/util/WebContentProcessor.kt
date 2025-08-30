@@ -50,7 +50,7 @@ class WebContentProcessor {
                     println("📥 Скачиваем изображение: $fileName")
                     
                     // Скачиваем изображение
-                    val downloadResult = imageDownloader.downloadImage(absoluteUrl, imagesFolder, fileName)
+                    val downloadResult = imageDownloader.downloadImage(absoluteUrl, imagesFolder, fileName, imagesFolder.name)
                     downloadResult.onSuccess { imageInfo ->
                         // Заменяем src на локальный путь
                         imgElement.attr("src", imageInfo.localPath)
@@ -115,7 +115,17 @@ class WebContentProcessor {
             val insideCode = element.selectFirst("code")
             val raw = insideCode?.wholeText()?.ifBlank { insideCode.text() }
                 ?: element.wholeText().ifBlank { element.text() }
-            append("```\n")
+            
+            // Извлекаем язык программирования
+            val language = insideCode?.let { extractProgrammingLanguage(it) } 
+                ?: extractProgrammingLanguage(element)
+            
+            append("```")
+            if (!language.isNullOrBlank()) {
+                append(language)
+                println("🎯 Обнаружен язык программирования: $language")
+            }
+            append("\n")
             append(raw.trimEnd())
             append("\n```")
         }
@@ -159,7 +169,7 @@ class WebContentProcessor {
 
     // Безопасно формирует имя файла
     fun sanitizeFilename(name: String): String =
-        name.replace("[\\\\/:*?\"<>|]".toRegex(), "_").trim()
+        name.replace("[\\\\/:*?\"<>|]".toRegex(), "-").trim()
 
     // Извлекает заголовок из HTML
     fun extractTitle(html: String): String? = try {
@@ -192,11 +202,12 @@ class WebContentProcessor {
         url: String,
         fileNameOption: com.jack3995.webtomarkdown.screens.FileNameOption,
         downloadImages: Boolean = true,
-        usePatterns: Boolean = true
+        usePatterns: Boolean = true,
+        customFileName: String? = null
     ): Result<ProcessResult> = withContext(Dispatchers.IO) {
         try {
             val html = WebDownloader().downloadWebPage(url)
-            val fileName = when (fileNameOption) {
+            val fileName = customFileName?.takeIf { it.isNotBlank() } ?: when (fileNameOption) {
                 com.jack3995.webtomarkdown.screens.FileNameOption.DEFAULT_NAME -> getDefaultFileName()
                 com.jack3995.webtomarkdown.screens.FileNameOption.PAGE_TITLE -> {
                     val title = extractTitle(html)
@@ -245,5 +256,52 @@ class WebContentProcessor {
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    // Извлекает язык программирования из HTML элемента
+    private fun extractProgrammingLanguage(element: Element): String? {
+        // Проверяем class атрибут элемента code
+        val codeClass = element.attr("class").lowercase()
+        if (codeClass.isNotBlank()) {
+            // Ищем язык в class (например, "java", "language-java", "highlight-java")
+            val knownLanguages = setOf(
+                "java", "kotlin", "javascript", "js", "python", "py", "cpp", "c++", "c", 
+                "csharp", "c#", "php", "ruby", "go", "rust", "swift", "typescript", "ts",
+                "html", "css", "xml", "json", "yaml", "yml", "sql", "bash", "shell", "sh"
+            )
+            
+            for (lang in knownLanguages) {
+                if (codeClass.contains(lang)) {
+                    return when (lang) {
+                        "js" -> "javascript"
+                        "py" -> "python"
+                        "c++" -> "cpp"
+                        "c#" -> "csharp"
+                        "ts" -> "typescript"
+                        "yml" -> "yaml"
+                        "sh" -> "bash"
+                        else -> lang
+                    }
+                }
+            }
+            
+            // Если точного совпадения нет, ищем паттерны
+            when {
+                codeClass.contains("language-") -> {
+                    val lang = codeClass.substringAfter("language-").split(" ")[0]
+                    if (lang.isNotBlank()) return lang
+                }
+                codeClass.contains("highlight-") -> {
+                    val lang = codeClass.substringAfter("highlight-").split(" ")[0]
+                    if (lang.isNotBlank()) return lang
+                }
+            }
+        }
+        
+        // Проверяем data-lang или data-language атрибуты
+        element.attr("data-lang").takeIf { it.isNotBlank() }?.let { return it }
+        element.attr("data-language").takeIf { it.isNotBlank() }?.let { return it }
+        
+        return null
     }
 }

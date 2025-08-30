@@ -138,7 +138,7 @@ class MainActivity : ComponentActivity() {
                 _notePreview = ""
 
                 CoroutineScope(Dispatchers.IO).launch {
-                    val result = processor.processPage(url, _fileNameOption, _downloadImages, _usePatterns)
+                    val result = processor.processPage(url, _fileNameOption, _downloadImages, _usePatterns, _fileNameInput.takeIf { it.isNotBlank() })
                     withContext(Dispatchers.Main) {
                         _isLoading = false
                         if (result.isSuccess) {

@@ -24,7 +24,8 @@ class ImageDownloader {
     suspend fun downloadImage(
         imageUrl: String,
         targetFolder: File,
-        fileName: String
+        fileName: String,
+        folderName: String? = null
     ): Result<ImageInfo> = withContext(Dispatchers.IO) {
         try {
             println("🔄 Начинаем скачивание: $imageUrl")
@@ -64,7 +65,7 @@ class ImageDownloader {
 
             val imageInfo = ImageInfo(
                 originalUrl = imageUrl,
-                localPath = imageFile.name, // Относительный путь для Markdown
+                localPath = if (folderName != null) "./$folderName/$fullFileName" else fullFileName, // Относительный путь для Markdown
                 fileName = fullFileName
             )
 
