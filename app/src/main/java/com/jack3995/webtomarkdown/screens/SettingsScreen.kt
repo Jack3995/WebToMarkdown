@@ -1,5 +1,6 @@
 package com.jack3995.webtomarkdown.screens
 
+import com.jack3995.webtomarkdown.BuildConfig
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.net.toUri
@@ -340,6 +341,85 @@ fun SettingsScreen(
                         }
 
                         // Убрали сворачиваемую подпись, используем инфо-иконку и диалог
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Блок 4: О приложении
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp)
+                    ) {
+                        /* Text(
+                            "Информация:",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(12.dp)) */
+
+                        // Кнопка "О приложении"
+                        var showAboutDialog by rememberSaveable { mutableStateOf(false) }
+                        
+                        Button(
+                            onClick = { showAboutDialog = true },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(
+                                Icons.Filled.Info,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("О приложении")
+                        }
+
+                        if (showAboutDialog) {
+                            AlertDialog(
+                                onDismissRequest = { showAboutDialog = false },
+                                confirmButton = {
+                                    TextButton(onClick = { showAboutDialog = false }) {
+                                        Text("Закрыть")
+                                    }
+                                },
+                                title = { 
+                                    Text(
+                                        "WebToMarkdown",
+                                        style = MaterialTheme.typography.headlineSmall,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                },
+                                text = {
+                                    Column {
+                                        Text(
+                                            "Приложение для создания заметок в формате Markdown из веб-страниц.",
+                                            style = MaterialTheme.typography.bodyMedium
+                                        )
+                                        Spacer(modifier = Modifier.height(8.dp))
+
+                                        Text(
+                                            "Версия: ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        
+                                        Text(
+                                            "Разработчик: Олифер Игорь",
+                                            style = MaterialTheme.typography.bodyMedium
+                                        )
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Text(
+                                            "Обратная связь: jack3995@mail.ru",
+                                            style = MaterialTheme.typography.bodyMedium
+                                        )
+                                    }
+                                }
+                            )
+                        }
                     }
                 }
             }
