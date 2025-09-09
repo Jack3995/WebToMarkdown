@@ -24,34 +24,45 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 
+/**
+ * Главная Activity приложения: инициализирует настройки и сохранение,
+ * управляет Compose-экраном и делегирует обработку/сохранение в утилиты.
+ */
 class MainActivity : ComponentActivity() {
 
     enum class Screen {
         Splash, Main, Settings
     }
 
+    // Обработчик контента (HTML → Markdown, загрузка изображений)
     private val processor = WebContentProcessor()
+    // Сервис сохранения заметок (через SAF) и копирования изображений
     private lateinit var fileSaveHandler: FileSaveHandler
+    // Менеджер пользовательских настроек
     private lateinit var settingsManager: SettingsManager
+    // Лаунчер системного диалога выбора папки (SAF)
     private lateinit var folderPickerLauncher: ActivityResultLauncher<Uri?>
 
-    private var fileNameInput by mutableStateOf("")
-    private var notePreview by mutableStateOf("")
-    private var urlState = mutableStateOf("")
+    // Локальные поля Activity; синхронизируются с состоянием внутри setContent
+    private var fileNameInput by mutableStateOf("")          // Текущее имя файла
+    private var notePreview by mutableStateOf("")            // Markdown превью
+    private var urlState = mutableStateOf("")                // Введённый URL
 
-    private var fileNameOption by mutableStateOf(FileNameOption.DEFAULT_NAME)
-    private var saveLocationOption by mutableStateOf(SaveLocationOption.ASK_EVERY_TIME)
-    private var lastCustomFolderUri by mutableStateOf<String?>(null)
+    // Настройки приложения
+    private var fileNameOption by mutableStateOf(FileNameOption.DEFAULT_NAME)            // Правило имени файла
+    private var saveLocationOption by mutableStateOf(SaveLocationOption.ASK_EVERY_TIME)  // Место сохранения
+    private var lastCustomFolderUri by mutableStateOf<String?>(null)                     // Запомненный SAF URI
 
-    private var downloadImages by mutableStateOf(true)
-    private var usePatterns by mutableStateOf(true)
-    private var imagesFolder by mutableStateOf<File?>(null) // Инициализировано с корректным типом
-    private var isLoading by mutableStateOf(false)
+    private var downloadImages by mutableStateOf(true)       // Загружать ли изображения
+    private var usePatterns by mutableStateOf(true)          // Использовать паттерны сайтов
+    private var imagesFolder by mutableStateOf<File?>(null)  // Текущая папка изображений
+    private var isLoading by mutableStateOf(false)           // Индикатор фоновой загрузки
 
+    // Навигация и сохранённый путь папки
     private var currentScreen by mutableStateOf(Screen.Splash)
     private var savedFolderPath by mutableStateOf<String?>(null)
     
-    // Переменные для хранения текущих значений при выборе папки
+    // Буфер значений, которые используются после выбора папки в SAF
     private var pendingFileName by mutableStateOf("")
     private var pendingContent by mutableStateOf("")
     private var pendingImagesFolder by mutableStateOf<File?>(null)
@@ -70,6 +81,7 @@ class MainActivity : ComponentActivity() {
         downloadImages = settingsManager.getDownloadImages()
         usePatterns = settingsManager.getUsePatterns()
 
+        // Регистрируем диалог выбора папки. Возвращает Uri выбранной директории (или null).
         folderPickerLauncher = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
             lastCustomFolderUri = uri?.toString()
             // Сохраняем выбранную папку в настройки
@@ -79,24 +91,22 @@ class MainActivity : ComponentActivity() {
             
             // Используем сохраненные значения для сохранения файла
             if (uri != null) {
-                println("📁 Выбрана папка: $uri")
-                println("💾 Сохраняем файл: $pendingFileName")
-                pendingImagesFolder?.let { folder ->
-                    println("🖼️ Папка с изображениями: ${folder.absolutePath}")
+                println("📁 MainActivity: Выбрана папка: $uri")
+                println("💾 MainActivity: Передаем управление FileSaveHandler для сохранения")
+                // Используем отложенные значения, подготовленные в FileSaveHandler
+                fileSaveHandler.onFolderPickedUsePending(uri) { success ->
+                    if (!success) println("❗ MainActivity получил результат: Ошибка сохранения файла через SAF")
+                    else println("✅ MainActivity получил результат: Файл успешно сохранен через SAF")
                 }
-                
-                fileSaveHandler.onFolderPicked(uri, pendingFileName, pendingContent, { success ->
-                    if (!success) println("❗ Ошибка сохранения файла через SAF")
-                    else println("✅ Файл успешно сохранен через SAF")
-                }, pendingImagesFolder)
             } else {
-                println("❌ Папка не выбрана")
+                println("❌ MainActivity: Папка не выбрана")
             }
         }
 
         // Обрабатываем интент при старте
         handleSendIntent(intent)
 
+        // Запускаем Compose UI и связываем его со стабильным состоянием
         setContent {
             var _currentScreen by rememberSaveable { mutableStateOf(currentScreen) }
             var _savedFolderPath by rememberSaveable { mutableStateOf(settingsManager.getCustomFolderPath()) }
@@ -109,22 +119,27 @@ class MainActivity : ComponentActivity() {
             var _fileNameInput by remember { mutableStateOf(fileNameInput) }
             var _downloadImages by rememberSaveable { mutableStateOf(settingsManager.getDownloadImages()) }
             var _usePatterns by rememberSaveable { mutableStateOf(settingsManager.getUsePatterns()) }
-            var _imagesFolder by remember { mutableStateOf<File?>(imagesFolder) }
-            var _isLoading by remember { mutableStateOf(isLoading) }
+            var _imagesFolder by remember { mutableStateOf<File?>(imagesFolder) }   // Папка изображений для UI
+            var _originalUrl by remember { mutableStateOf("") }                    // Исходный URL
+            var _tempImagesFolder by remember { mutableStateOf<File?>(null) }       // Временная папка изображений
+            var _isLoading by remember { mutableStateOf(isLoading) }                 // Индикатор загрузки для UI
             val supportedDomains by remember { mutableStateOf(processor.getSupportedPatternDomains()) }
 
+            // Очистка полей ввода и превью
             fun clearFields() {
                 _urlState.value = ""
                 _fileNameInput = ""
                 _notePreview = ""
             }
 
+            // Генерация имени по умолчанию (на случай локального использования)
             fun getDefaultFileName(): String {
                 val dateFormat = SimpleDateFormat("dd.MM.yyyy_HH.mm", Locale.getDefault())
                 val currentDate = dateFormat.format(Date())
                 return "Заметка_$currentDate"
             }
 
+            // Обрабатывает URL: запускает процесс скачивания и конвертации через WebContentProcessor
             fun processUrl() {
                 val url = _urlState.value.trim()
                 if (url.isEmpty()) {
@@ -137,6 +152,7 @@ class MainActivity : ComponentActivity() {
                 _isLoading = true
                 _notePreview = ""
 
+                // Выполнение тяжёлой работы в IO, обновление UI — на Main
                 CoroutineScope(Dispatchers.IO).launch {
                     val result = processor.processPage(url, _fileNameOption, _downloadImages, _usePatterns, _fileNameInput.takeIf { it.isNotBlank() })
                     withContext(Dispatchers.Main) {
@@ -145,61 +161,58 @@ class MainActivity : ComponentActivity() {
                             val data = result.getOrThrow()
                             _notePreview = data.markdown
                             _fileNameInput = data.fileName
-                            _imagesFolder = data.imagesFolder
-                            if (data.imagesFolder != null) {
-                                println("📁 Папка с изображениями: ${data.imagesFolder.name}")
+                            _originalUrl = url
+                            _tempImagesFolder = data.tempImagesFolder
+                            
+                            println("✅ MainActivity: Страница успешно обработана")
+                            if (data.tempImagesFolder != null) {
+                                println("📁 MainActivity: Получена временная папка с изображениями: ${data.tempImagesFolder.name}")
+                            } else {
+                                println("ℹ️ MainActivity: Временная папка не создана (изображения отключены или не найдены)")
                             }
-                            println("✅ Страница успешно обработана")
                         } else {
                             _notePreview = "Ошибка загрузки страницы: ${result.exceptionOrNull()?.message}"
                             _fileNameInput = ""
-                            _imagesFolder = null
-                            println("❌ Ошибка обработки страницы: ${result.exceptionOrNull()?.message}")
+                            _originalUrl = ""
+                            _tempImagesFolder = null
+                            println("❌ MainActivity: Ошибка обработки страницы: ${result.exceptionOrNull()?.message}")
                         }
                     }
                 }
             }
 
+            // Делегирует FileSaveHandler полный алгоритм сохранения
             fun saveNote() {
-                val fileName = _fileNameInput.ifBlank {
-                    if (_fileNameOption == FileNameOption.DEFAULT_NAME) processor.getDefaultFileName()
-                    else "page_${System.currentTimeMillis()}.md"
-                }
-
+                println("💾 Пользователь нажал сохранить! Передаем управление FileSaveHandler")
+                
                 fileSaveHandler.lastCustomFolderUri = _lastCustomFolderUri
-
-                println("💾 Сохраняем заметку: $fileName")
-                _imagesFolder?.let { folder ->
-                    println("📁 Папка с изображениями: ${folder.absolutePath}")
-                    println("📁 Содержимое папки: ${folder.listFiles()?.map { it.name } ?: "пусто"}")
-                } ?: run {
-                    println("⚠️ Папка с изображениями не найдена")
-                }
-
-                fileSaveHandler.saveNote(
-                    fileName,
-                    _notePreview,
-                    _saveLocationOption,
+                
+                // Передаем всю логику сохранения в FileSaveHandler
+                fileSaveHandler.saveNoteWithFullLogic(
+                    fileName = _fileNameInput,
+                    content = _notePreview,
+                    saveLocationOption = _saveLocationOption,
+                    fileNameOption = _fileNameOption,
+                    downloadImages = _downloadImages,
+                    usePatterns = _usePatterns,
+                    originalUrl = _originalUrl,
+                    tempImagesFolder = _tempImagesFolder,
                     onFolderPickerRequest = {
-                        // Сохраняем текущие значения для использования в замыкании
-                        pendingFileName = fileName
+                        // Сохраняем значения, чтобы использовать их после выбора папки в SAF
+                        pendingFileName = _fileNameInput
                         pendingContent = _notePreview
-                        pendingImagesFolder = _imagesFolder
+                        pendingImagesFolder = _tempImagesFolder
                         
-                        println("💾 Сохранены значения для выбора папки:")
-                        println("   Файл: $fileName")
-                        println("   Папка с изображениями: ${_imagesFolder?.absolutePath ?: "нет"}")
-                        
+                        println("📁 Запрашиваем выбор папки у пользователя")
                         folderPickerLauncher.launch(null)
                     },
                     onSaveResult = { success ->
                         if (!success) {
-                            println("❗ Ошибка сохранения заметки")
+                            println("❗ MainActivity получил результат: Ошибка сохранения")
                         } else {
-                            println("✅ Заметка успешно сохранена")
+                            println("✅ MainActivity получил результат: Успешное сохранение")
                         }
-                    },
-                    imagesFolder = _imagesFolder
+                    }
                 )
             }
 

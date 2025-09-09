@@ -13,7 +13,8 @@ class WebContentProcessor {
     data class ProcessResult(
         val markdown: String, 
         val fileName: String,
-        val imagesFolder: File? = null
+        val baseUrl: String,
+        val tempImagesFolder: File? = null
     )
 
     private val patternProcessor = PatternProcessor()
@@ -215,25 +216,40 @@ class WebContentProcessor {
                 }
             }
             
-            val markdownBody = if (downloadImages && fileName.isNotBlank()) {
-                println("🖼️ Скачивание изображений включено")
+            val (markdownBody, tempImagesFolder) = if (downloadImages && fileName.isNotBlank()) {
+                println("🖼️ WebContentProcessor: Скачивание изображений включено")
                 
-                // Создаем папку для изображений во временной директории
-                val imagesFolder = File.createTempFile("${fileName}_images", "").parentFile?.let { parent ->
-                    File(parent, "${fileName}_images")
-                } ?: File("${fileName}_images")
+                // Создаем временную папку "temp-folder-for-images" в системной временной директории
+                val tempFolder = File.createTempFile("temp-folder-for-images", "").parentFile?.let { parent ->
+                    File(parent, "temp-folder-for-images")
+                } ?: File("temp-folder-for-images")
                 
-                if (!imagesFolder.exists()) {
-                    imagesFolder.mkdirs()
-                    println("📁 Создана папка для изображений: ${imagesFolder.absolutePath}")
-                } else {
-                    println("📁 Папка для изображений уже существует: ${imagesFolder.absolutePath}")
+                if (!tempFolder.exists()) {
+                    tempFolder.mkdirs()
+                    println("📁 WebContentProcessor: Создана временная папка для изображений: ${tempFolder.absolutePath}")
                 }
                 
-                convertHtmlToMarkdownWithImages(html, url, imagesFolder, usePatterns)
+                // Скачиваем изображения во временную папку
+                val markdown = convertHtmlToMarkdownWithImages(html, url, tempFolder, usePatterns)
+                
+                // Проверяем, есть ли изображения в папке
+                val imageFiles = tempFolder.listFiles()?.filter { it.isFile } ?: emptyList()
+                val finalTempFolder = if (imageFiles.isNotEmpty()) {
+                    println("📁 WebContentProcessor: Временная папка с изображениями создана: ${tempFolder.name}")
+                    println("🖼️ WebContentProcessor: Найдено изображений: ${imageFiles.size}")
+                    tempFolder
+                } else {
+                    println("📁 WebContentProcessor: Временная папка пуста, изображения не загрузились")
+                    println("🗑️ WebContentProcessor: Удаляем пустую временную папку")
+                    tempFolder.deleteRecursively()
+                    null
+                }
+                
+                Pair(markdown, finalTempFolder)
             } else {
-                println("⚠️ Скачивание изображений отключено")
-                convertHtmlToMarkdown(html, url, usePatterns)
+                println("⚠️ WebContentProcessor: Скачивание изображений отключено")
+                val markdown = convertHtmlToMarkdown(html, url, usePatterns)
+                Pair(markdown, null)
             }
 
             val markdown = buildString {
@@ -246,13 +262,7 @@ class WebContentProcessor {
                 append(")")
             }
             
-            val imagesFolder = if (downloadImages && fileName.isNotBlank()) {
-                File.createTempFile("${fileName}_images", "").parentFile?.let { parent ->
-                    File(parent, "${fileName}_images")
-                } ?: File("${fileName}_images")
-            } else null
-            
-            Result.success(ProcessResult(markdown, fileName, imagesFolder))
+            Result.success(ProcessResult(markdown, fileName, url, tempImagesFolder))
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -304,4 +314,76 @@ class WebContentProcessor {
         
         return null
     }
+
+    /**
+     * Создаёт папку с изображениями с актуальным именем и копирует изображения из временной папки
+     */
+    suspend fun createFinalImagesFolderAndCopyImages(
+        tempImagesFolder: File,
+        actualFileName: String,
+        targetDirectory: File
+    ): File? = withContext(Dispatchers.IO) {
+        try {
+            // Создаём папку с правильным именем в целевой директории
+            val finalImagesFolder = File(targetDirectory, "${actualFileName}_images")
+            if (!finalImagesFolder.exists()) {
+                finalImagesFolder.mkdirs()
+                println("📁 Создана финальная папка для изображений: ${finalImagesFolder.absolutePath}")
+            }
+            
+            // Копируем все изображения из временной папки
+            val imageFiles = tempImagesFolder.listFiles()
+            if (imageFiles.isNullOrEmpty()) {
+                println("⚠️ Временная папка с изображениями пуста")
+                return@withContext finalImagesFolder
+            }
+            
+            println("🔄 Копируем ${imageFiles.size} изображений в финальную папку")
+            
+            imageFiles.forEach { imageFile ->
+                if (imageFile.isFile) {
+                    val targetFile = File(finalImagesFolder, imageFile.name)
+                    imageFile.copyTo(targetFile, overwrite = true)
+                    println("✅ Скопировано изображение: ${imageFile.name}")
+                }
+            }
+            
+            // Удаляем временную папку
+            tempImagesFolder.deleteRecursively()
+            println("🗑️ Временная папка удалена")
+            
+            finalImagesFolder
+        } catch (e: Exception) {
+            println("❌ Ошибка при создании финальной папки: ${e.message}")
+            null
+        }
+    }
+
+    /**
+     * Обновляет ссылки в markdown на актуальные пути к изображениям
+     */
+    fun updateMarkdownImageLinks(markdown: String, actualFileName: String): String {
+    println("🔍 updateMarkdownImageLinks вызвана с actualFileName: $actualFileName")
+    println("🔍 Ищем паттерн: ./temp-folder-for-images/")
+    val beforeCount = markdown.split("./temp-folder-for-images/").size - 1
+    println("�� Найдено вхождений: $beforeCount")
+    
+    if (beforeCount > 0) {
+        println("📄 Пример найденного пути: ${markdown.substringAfter("./temp-folder-for-images/").substringBefore(")").take(50)}...")
+    }
+    
+    // Заменяем пути на формат Obsidian ![[image_name.***]]
+    val result = markdown.replace(
+        Regex("""!\[.*?\]\(\./temp-folder-for-images/([^)]+)\)"""),
+        "![[$1]]"
+    )
+    
+    val afterCount = result.split("![[").size - 1
+    println("🔍 После замены: $afterCount вхождений")
+    if (afterCount > 0) {
+        println("�� Пример заменённого пути: ${result.substringAfter("![[").substringBefore("]]").take(50)}...")
+    }
+    
+    return result
+}
 }
