@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import androidx.core.content.edit
 import com.jack3995.webtomarkdown.screens.FileNameOption
 import com.jack3995.webtomarkdown.screens.SaveLocationOption
+import com.jack3995.webtomarkdown.screens.ThemeOption
 
 /**
  * Менеджер настроек приложения.
@@ -26,6 +27,7 @@ class SettingsManager(context: Context) {
         private const val KEY_FILE_NAME_OPTION = "file_name_option"
         private const val KEY_DOWNLOAD_IMAGES = "download_images"
         private const val KEY_USE_PATTERNS = "use_site_patterns"
+        private const val KEY_THEME_OPTION = "theme_option"
     }
     
     /**
@@ -91,6 +93,22 @@ class SettingsManager(context: Context) {
     }
     
     /**
+     * Загружает настройку темы приложения
+     */
+    fun getThemeOption(): ThemeOption {
+        val themeName = sharedPreferences.getString(KEY_THEME_OPTION, null)
+        return if (themeName != null) {
+            try {
+                ThemeOption.valueOf(themeName)
+            } catch (_: IllegalArgumentException) {
+                ThemeOption.SYSTEM
+            }
+        } else {
+            ThemeOption.SYSTEM
+        }
+    }
+    
+    /**
      * Сохраняет все настройки одновременно
      */
     fun saveAllSettings(
@@ -98,7 +116,8 @@ class SettingsManager(context: Context) {
         customFolderPath: String?,
         fileNameOption: FileNameOption,
         downloadImages: Boolean,
-        usePatterns: Boolean
+        usePatterns: Boolean,
+        themeOption: ThemeOption = ThemeOption.SYSTEM
     ) {
         sharedPreferences.edit {
             putString(KEY_SAVE_LOCATION_OPTION, saveLocationOption.name)
@@ -106,6 +125,16 @@ class SettingsManager(context: Context) {
             putString(KEY_FILE_NAME_OPTION, fileNameOption.name)
             putBoolean(KEY_DOWNLOAD_IMAGES, downloadImages)
             putBoolean(KEY_USE_PATTERNS, usePatterns)
+            putString(KEY_THEME_OPTION, themeOption.name)
+        }
+    }
+    
+    /**
+     * Сохраняет только настройку темы
+     */
+    fun saveThemeOption(themeOption: ThemeOption) {
+        sharedPreferences.edit {
+            putString(KEY_THEME_OPTION, themeOption.name)
         }
     }
 }

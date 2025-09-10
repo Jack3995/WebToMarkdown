@@ -1,5 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-
-    <style name="Theme.WebToMarkdown" parent="android:Theme.Material.Light.NoActionBar" />
+    <!-- Светлая тема -->
+    <style name="Theme.WebToMarkdown" parent="android:Theme.Material.Light.NoActionBar">
+        <!-- Primary colors -->
+        <item name="android:colorPrimary">@color/light_primary</item>
+        <item name="android:colorPrimaryDark">@color/light_primary</item>
+        <item name="android:colorAccent">@color/light_secondary</item>
+        
+        <!-- Background colors -->
+        <item name="android:colorBackground">@color/light_background</item>
+        <item name="android:textColorPrimary">@color/light_on_background</item>
+        <item name="android:textColorSecondary">@color/light_on_surface_variant</item>
+        
+        <!-- Status bar colors -->
+        <item name="android:statusBarColor">@color/light_primary</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:navigationBarColor">@color/light_background</item>
+        <item name="android:windowLightNavigationBar">true</item>
+    </style>
 </resources>

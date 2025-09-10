@@ -47,6 +47,7 @@ fun SettingsScreen(
     initialSaveLocationOption: SaveLocationOption,
     initialDownloadImages: Boolean = true,
     initialUsePatterns: Boolean = true,
+    initialThemeOption: ThemeOption = ThemeOption.SYSTEM,
     supportedDomains: List<String> = emptyList(),
     onSave: (
         Boolean,
@@ -54,7 +55,8 @@ fun SettingsScreen(
         FileNameOption,
         SaveLocationOption,
         Boolean,
-        Boolean
+        Boolean,
+        ThemeOption
     ) -> Unit
 ) {
     // Состояние для выбора варианта места сохранения (0 — ASK_EVERY_TIME, 1 — CUSTOM_FOLDER)
@@ -78,6 +80,9 @@ fun SettingsScreen(
 
     // Состояние для использования паттернов
     var usePatterns by rememberSaveable { mutableStateOf(initialUsePatterns) }
+    
+    // Состояние для выбора темы
+    var selectedThemeOption by rememberSaveable { mutableStateOf(initialThemeOption) }
 
     // Запуск SAF для выбора папки
     val folderPickerLauncher = rememberLauncherForActivityResult(
@@ -126,7 +131,8 @@ fun SettingsScreen(
             selectedFileNameOption,
             saveLoc,
             downloadImages,
-            usePatterns
+            usePatterns,
+            selectedThemeOption
         )
 
         coroutineScope.launch {
@@ -346,7 +352,55 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Блок 4: О приложении
+                // Блок 4: Цветовая тема
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp)
+                    ) {
+                        Text(
+                            "Цветовая тема:",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Список вариантов тем с радио-кнопками
+                        Column {
+                            ThemeOption.entries.forEach { option ->
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .selectable(
+                                            selected = selectedThemeOption == option,
+                                            onClick = { selectedThemeOption = option }
+                                        )
+                                        .padding(vertical = 4.dp)
+                                ) {
+                                    RadioButton(
+                                        selected = selectedThemeOption == option,
+                                        onClick = { selectedThemeOption = option }
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        when (option) {
+                                            ThemeOption.LIGHT -> "Светлая"
+                                            ThemeOption.DARK -> "Тёмная"
+                                            ThemeOption.SYSTEM -> "Как в системе"
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Блок 5: О приложении
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -447,4 +501,17 @@ enum class FileNameOption {
 enum class SaveLocationOption {
     ASK_EVERY_TIME,
     CUSTOM_FOLDER
+}
+
+/**
+ * Перечисление вариантов цветовой темы приложения.
+ *
+ * - LIGHT: Светлая тема
+ * - DARK: Тёмная тема
+ * - SYSTEM: Следовать системной теме
+ */
+enum class ThemeOption {
+    LIGHT,
+    DARK,
+    SYSTEM
 }
