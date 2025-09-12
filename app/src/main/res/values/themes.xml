@@ -15,7 +15,6 @@
         <!-- Status bar colors -->
         <item name="android:statusBarColor">@color/light_primary</item>
         <item name="android:windowLightStatusBar">false</item>
-        <item name="android:navigationBarColor">@color/light_background</item>
-        <item name="android:windowLightNavigationBar">true</item>
+        
     </style>
 </resources>

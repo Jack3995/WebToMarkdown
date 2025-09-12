@@ -18,6 +18,9 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.ui.zIndex
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -73,11 +76,15 @@ fun MainScreen(
             )
         },
                 bottomBar = {
-            BottomAppBar(
-                modifier = Modifier.height(140.dp)
+            Surface(
+                tonalElevation = 3.dp,
+                modifier = Modifier.zIndex(1f)
             ) {
                 Column(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .windowInsetsPadding(WindowInsets.navigationBars)
+                        .padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     // Первый ряд: Вставить | Очистить
@@ -90,7 +97,7 @@ fun MainScreen(
                                 pasteFromClipboard()
                                 showNotification("URL вставлен из буфера обмена")
                             },
-                            modifier = Modifier.weight(1f).height(50.dp),
+                            modifier = Modifier.weight(1f).height(56.dp),
                             enabled = !isLoading
                         ) {
                             Row(
@@ -112,7 +119,7 @@ fun MainScreen(
                                 onClearClick()
                                 showNotification("Поля очищены")
                             },
-                            modifier = Modifier.weight(1f).height(50.dp),
+                            modifier = Modifier.weight(1f).height(56.dp),
                             enabled = !isLoading
                         ) {
                             Row(

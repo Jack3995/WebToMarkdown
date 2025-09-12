@@ -19,12 +19,12 @@ import com.jack3995.webtomarkdown.screens.ThemeOption
 class ThemeManager(private val activity: Activity) {
 
     /**
-     * Настройка системных баров для edge-to-edge отображения
+     * Настройка системных баров: контент НЕ рисуем под системными панелями
      */
     fun setupSystemBars() {
-        // Включаем edge-to-edge отображение
-        WindowCompat.setDecorFitsSystemWindows(activity.window, false)
-        
+        // Рисуем с учётом системных панелей (без edge-to-edge)
+        WindowCompat.setDecorFitsSystemWindows(activity.window, true)
+
         // Настраиваем поведение системных баров
         val windowInsetsController = WindowCompat.getInsetsController(
             activity.window, 
@@ -32,10 +32,9 @@ class ThemeManager(private val activity: Activity) {
         )
         windowInsetsController.systemBarsBehavior = 
             WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-        
-        // Включаем отображение за системными барами
-        activity.window.setFlags(
-            android.view.WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+
+        // Убеждаемся, что не установлены флаги рисования под барами
+        activity.window.clearFlags(
             android.view.WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
         )
     }
@@ -56,19 +55,13 @@ class ThemeManager(private val activity: Activity) {
         )
         
         if (isDark) {
-            // Тёмная тема - светло-голубой акцентный цвет
+            // Тёмная тема — настраиваем только статус-бар
             activity.window.statusBarColor = "#71C5E8".toColorInt()
-            activity.window.navigationBarColor = "#1C1B1F".toColorInt()
-            // Светлые иконки в строке уведомлений (для тёмного фона)
             windowInsetsController.isAppearanceLightStatusBars = false
-            windowInsetsController.isAppearanceLightNavigationBars = false
         } else {
-            // Светлая тема - тёмно-синий акцентный цвет
+            // Светлая тема — настраиваем только статус-бар
             activity.window.statusBarColor = "#0B2B6A".toColorInt()
-            activity.window.navigationBarColor = "#FFFBFE".toColorInt()
-            // Тёмные иконки в строке уведомлений (для светлого фона)
             windowInsetsController.isAppearanceLightStatusBars = true
-            windowInsetsController.isAppearanceLightNavigationBars = true
         }
     }
 
