@@ -12,8 +12,8 @@ android {
         applicationId = "com.jack3995.webtomarkdown"
         minSdk = 26
         targetSdk = 36
-        versionCode = 28
-        versionName = "1.9.0"
+        versionCode = 29
+        versionName = "1.9.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
