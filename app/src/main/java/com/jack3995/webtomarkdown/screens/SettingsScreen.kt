@@ -21,7 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.font.FontWeight
 import androidx.activity.compose.BackHandler
-import kotlinx.coroutines.launch
+ 
 
 /**
  * Основной экран настроек приложения.
@@ -95,9 +95,7 @@ fun SettingsScreen(
         }
     )
 
-    // Snackbar для уведомления о сохранении
-    val snackbarHostState = remember { SnackbarHostState() }
-    val coroutineScope = rememberCoroutineScope()
+    // Убрали Snackbar/уведомления о сохранении
     val scrollState = rememberScrollState()
 
     // Функция для преобразования URI в читаемый путь
@@ -134,10 +132,7 @@ fun SettingsScreen(
             usePatterns,
             selectedThemeOption
         )
-
-        coroutineScope.launch {
-            snackbarHostState.showSnackbar("Настройки сохранены")
-        }
+        // Без всплывающих уведомлений
     }
 
     // Обработчик кнопки "назад" - сохраняет настройки и возвращается на главный экран
@@ -155,8 +150,7 @@ fun SettingsScreen(
                     }
                 }
             )
-        },
-        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
+        }
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -329,7 +323,7 @@ fun SettingsScreen(
                         }
                         Spacer(modifier = Modifier.height(8.dp))
 
-                        // Переключатель для скачивания изображений
+                        // Переключатель для скачивания изображений + инфо-иконка
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -340,11 +334,33 @@ fun SettingsScreen(
                                 style = MaterialTheme.typography.bodyMedium,
                                 modifier = Modifier.weight(1f)
                             )
+                            var showImagesInfo by rememberSaveable { mutableStateOf(false) }
+                            IconButton(onClick = { showImagesInfo = true }) {
+                                Icon(Icons.Filled.Info, contentDescription = "Примечание о скачивании изображений")
+                            }
                             Switch(
                                 checked = downloadImages,
                                 onCheckedChange = { downloadImages = it }
                             )
+                            if (showImagesInfo) {
+                                AlertDialog(
+                                    onDismissRequest = { showImagesInfo = false },
+                                    confirmButton = {
+                                        TextButton(onClick = { showImagesInfo = false }) {
+                                            Text("OK")
+                                        }
+                                    },
+                                    title = { Text("Скачивание изображений") },
+                                    text = {
+                                        Text(
+                                            "Изображения сохраняются рядом с заметкой в одноимённую папку и подключаются в заметке ссылками в соответствии с синтаксисом Markdown.",
+                                            style = MaterialTheme.typography.bodyMedium
+                                        )
+                                    }
+                                )
+                            }
                         }
+                        
 
                         // Убрали сворачиваемую подпись, используем инфо-иконку и диалог
                     }

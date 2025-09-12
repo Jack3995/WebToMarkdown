@@ -18,10 +18,12 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.ui.zIndex
 import kotlinx.coroutines.launch
+ 
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -38,31 +40,25 @@ fun MainScreen(
     isLoading: Boolean = false
 ) {
     val scrollState = rememberScrollState()
-    val clipboardManager = LocalClipboardManager.current
-    val snackbarHostState = remember { SnackbarHostState() }
-    val coroutineScope = rememberCoroutineScope()
+    val clipboard = LocalClipboardManager.current
+    val scope = rememberCoroutineScope()
+    
 
     // Функция для вставки из буфера обмена
     fun pasteFromClipboard() {
-        coroutineScope.launch {
+        scope.launch {
             try {
-                val text = clipboardManager.getText()
-                if (text != null) {
-                    onUrlChange(text.text)
-                    snackbarHostState.showSnackbar("URL вставлен из буфера обмена")
+                val clipboardText = clipboard.getText()?.text
+                if (clipboardText != null) {
+                    onUrlChange(clipboardText)
                 }
             } catch (_: Exception) {
-                snackbarHostState.showSnackbar("Ошибка при вставке из буфера обмена")
+                // Ошибку вставки игнорируем без всплывающих уведомлений
             }
         }
     }
 
-    // Функция для показа уведомлений
-    fun showNotification(message: String) {
-        coroutineScope.launch {
-            snackbarHostState.showSnackbar(message)
-        }
-    }
+    // Всплывающие уведомления удалены
 
     Scaffold(
         topBar = {
@@ -93,10 +89,7 @@ fun MainScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         AnimatedButton(
-                            onClick = {
-                                pasteFromClipboard()
-                                showNotification("URL вставлен из буфера обмена")
-                            },
+                            onClick = { pasteFromClipboard() },
                             modifier = Modifier.weight(1f).height(56.dp),
                             enabled = !isLoading
                         ) {
@@ -115,10 +108,7 @@ fun MainScreen(
                         }
                         
                         AnimatedButton(
-                            onClick = {
-                                onClearClick()
-                                showNotification("Поля очищены")
-                            },
+                            onClick = { onClearClick() },
                             modifier = Modifier.weight(1f).height(56.dp),
                             enabled = !isLoading
                         ) {
@@ -143,10 +133,7 @@ fun MainScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         AnimatedButton(
-                            onClick = {
-                                onProcessClick()
-                                showNotification("Начинаем обработку страницы...")
-                            },
+                            onClick = { onProcessClick() },
                             modifier = Modifier.weight(1f).height(56.dp),
                             enabled = urlState.isNotBlank() && !isLoading
                         ) {
@@ -165,10 +152,7 @@ fun MainScreen(
                         }
                         
                         AnimatedButton(
-                            onClick = {
-                                onSaveClick()
-                                showNotification("Файл сохранен")
-                            },
+                            onClick = { onSaveClick() },
                             modifier = Modifier.weight(1f).height(56.dp),
                             enabled = notePreview.isNotBlank() && !isLoading
                         ) {
@@ -188,8 +172,7 @@ fun MainScreen(
                     }
                 }
             }
-        },
-        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
+        }
     ) { innerPadding ->
         Column(
             modifier = Modifier
