@@ -65,7 +65,7 @@ class ImageDownloader {
 
             val imageInfo = ImageInfo(
                 originalUrl = imageUrl,
-                localPath = if (folderName != null) "./$folderName/$fullFileName" else fullFileName, // Относительный путь для Markdown
+                localPath = fullFileName, // Показываем только имя файла в предпросмотре
                 fileName = fullFileName
             )
 

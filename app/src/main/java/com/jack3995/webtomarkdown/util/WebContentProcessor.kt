@@ -26,7 +26,8 @@ class WebContentProcessor {
         html: String, 
         baseUrl: String, 
         imagesFolder: File,
-        usePatterns: Boolean
+        usePatterns: Boolean,
+        noteName: String? = null
     ): String {
         val doc = Jsoup.parse(html)
         val root = if (usePatterns) (patternProcessor.tryExtract(baseUrl, doc) ?: doc.body()) else doc.body()
@@ -38,6 +39,7 @@ class WebContentProcessor {
         
         println("🖼️ Найдено изображений на странице: ${imageElements.size}")
         
+        var imageCounter = 1
         for (imgElement in imageElements) {
             val src = imgElement.attr("src")
             if (src.isNotBlank()) {
@@ -46,7 +48,7 @@ class WebContentProcessor {
                 
                 if (imageDownloader.isImageUrl(absoluteUrl)) {
                     val altText = imgElement.attr("alt").ifBlank { "image" }
-                    val fileName = generateImageFileName(absoluteUrl, altText)
+                    val fileName = generateImageFileName(absoluteUrl, altText, noteName, imageCounter)
                     
                     println("📥 Скачиваем изображение: $fileName")
                     
@@ -56,6 +58,7 @@ class WebContentProcessor {
                         // Заменяем src на локальный путь
                         imgElement.attr("src", imageInfo.localPath)
                         println("✅ Изображение скачано: ${imageInfo.fileName}")
+                        imageCounter++
                     }.onFailure { error ->
                         println("❌ Ошибка скачивания изображения $absoluteUrl: ${error.message}")
                         // Оставляем оригинальный URL
@@ -149,8 +152,7 @@ class WebContentProcessor {
         "i", "em" -> "*${element.text()}*"
         "img" -> {
             val src = element.attr("src")
-            val alt = element.attr("alt").ifBlank { "image" }
-            "![$alt]($src)"
+            "![[$src]]"
         }
         "blockquote" -> "> [!NOTE]\n" + element.text().lines().joinToString("\n") { "> $it" }
         "br" -> ""
@@ -168,9 +170,24 @@ class WebContentProcessor {
         }
     }
 
-    // Безопасно формирует имя файла
-    fun sanitizeFilename(name: String): String =
-        name.replace("[\\\\/:*?\"<>|]".toRegex(), "-").trim()
+    // Мягкая очистка для имен заметок - только запрещенные символы Windows/Android
+    fun sanitizeNoteName(name: String): String {
+        return name
+            .replace("[\\\\/:*?\"<>|]".toRegex(), "-") // Удаляем только запрещенные символы Windows/Android
+            .trim()
+    }
+    
+    // Строгая очистка для имен изображений - с заменой скобок и пробелов
+    fun sanitizeImageName(name: String): String {
+        return name
+            .replace("\\s+".toRegex(), "_") // Заменяем пробелы на подчеркивания
+            .replace("\\[\\[".toRegex(), "((") // Заменяем [[ на ((
+            .replace("\\]\\]".toRegex(), "))") // Заменяем ]] на ))
+            .replace("\\[".toRegex(), "(") // Заменяем одиночные [ на (
+            .replace("\\]".toRegex(), ")") // Заменяем одиночные ] на )
+            .replace("[\\\\/:*?\"<>|]".toRegex(), "-") // Удаляем запрещенные символы Windows/Android
+            .trim()
+    }
 
     // Извлекает заголовок из HTML
     fun extractTitle(html: String): String? = try {
@@ -187,14 +204,26 @@ class WebContentProcessor {
     }
     
     // Генерирует имя файла для изображения
-    private fun generateImageFileName(imageUrl: String, altText: String): String {
-        val sanitizedAlt = sanitizeFilename(altText).take(30)
-        val timestamp = System.currentTimeMillis()
+    private fun generateImageFileName(imageUrl: String, altText: String, noteName: String? = null, imageCounter: Int = 1): String {
+        val sanitizedAlt = sanitizeImageName(altText)
         val knownExt = setOf("png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "avif", "heic")
         val fromUrl = imageUrl.substringAfterLast('/', imageUrl)
         val ext = fromUrl.substringAfterLast('.', "").lowercase().take(5)
         val safeExt = if (ext in knownExt) ext else "png"
-        return "${sanitizedAlt}_$timestamp.$safeExt"
+        
+        // Если altText после очистки пустой или слишком короткий, используем fallback
+        val finalName = if (sanitizedAlt.isBlank() || sanitizedAlt.length < 3) {
+            if (noteName != null) {
+                val cleanNoteName = sanitizeImageName(noteName).take(20)
+                "${cleanNoteName}_${imageCounter}"
+            } else {
+                "image_${imageCounter}"
+            }
+        } else {
+            sanitizedAlt.take(30)
+        }
+        
+        return "$finalName.$safeExt"
     }
 
     // Основная функция обработки страницы по url и опции имени файла
@@ -212,7 +241,7 @@ class WebContentProcessor {
                 com.jack3995.webtomarkdown.screens.FileNameOption.DEFAULT_NAME -> getDefaultFileName()
                 com.jack3995.webtomarkdown.screens.FileNameOption.PAGE_TITLE -> {
                     val title = extractTitle(html)
-                    if (title.isNullOrBlank()) getDefaultFileName() else sanitizeFilename(title)
+                    if (title.isNullOrBlank()) getDefaultFileName() else sanitizeNoteName(title)
                 }
             }
             
@@ -230,7 +259,7 @@ class WebContentProcessor {
                 }
                 
                 // Скачиваем изображения во временную папку
-                val markdown = convertHtmlToMarkdownWithImages(html, url, tempFolder, usePatterns)
+                val markdown = convertHtmlToMarkdownWithImages(html, url, tempFolder, usePatterns, fileName)
                 
                 // Проверяем, есть ли изображения в папке
                 val imageFiles = tempFolder.listFiles()?.filter { it.isFile } ?: emptyList()
@@ -358,32 +387,4 @@ class WebContentProcessor {
             null
         }
     }
-
-    /**
-     * Обновляет ссылки в markdown на актуальные пути к изображениям
-     */
-    fun updateMarkdownImageLinks(markdown: String, actualFileName: String): String {
-    println("🔍 updateMarkdownImageLinks вызвана с actualFileName: $actualFileName")
-    println("🔍 Ищем паттерн: ./temp-folder-for-images/")
-    val beforeCount = markdown.split("./temp-folder-for-images/").size - 1
-    println("�� Найдено вхождений: $beforeCount")
-    
-    if (beforeCount > 0) {
-        println("📄 Пример найденного пути: ${markdown.substringAfter("./temp-folder-for-images/").substringBefore(")").take(50)}...")
-    }
-    
-    // Заменяем пути на формат Obsidian ![[image_name.***]]
-    val result = markdown.replace(
-        Regex("""!\[.*?\]\(\./temp-folder-for-images/([^)]+)\)"""),
-        "![[$1]]"
-    )
-    
-    val afterCount = result.split("![[").size - 1
-    println("🔍 После замены: $afterCount вхождений")
-    if (afterCount > 0) {
-        println("�� Пример заменённого пути: ${result.substringAfter("![[").substringBefore("]]").take(50)}...")
-    }
-    
-    return result
-}
 }

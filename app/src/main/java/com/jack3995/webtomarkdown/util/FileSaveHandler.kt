@@ -228,10 +228,8 @@ class FileSaveHandler(private val context: Context, private val contentResolver:
         if (tempImagesFolder != null && tempImagesFolder.exists()) {
             println("📁 Временная папка с изображениями найдена: ${tempImagesFolder.name}")
             
-            // Обновляем ссылки в markdown на актуальные пути
-            println("🔄 Вызываем updateMarkdownImageLinks...")
-            val updatedMarkdown = processor.updateMarkdownImageLinks(content, finalFileName)
-            println("📝 Markdown обновлен с актуальными путями к изображениям")
+            // Markdown уже содержит финальный формат изображений
+            val updatedMarkdown = content
 
             if (saveLocationOption == SaveLocationOption.ASK_EVERY_TIME) {
                 // Store pending and trigger folder picker
