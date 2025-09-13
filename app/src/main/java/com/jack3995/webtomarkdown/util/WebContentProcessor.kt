@@ -7,6 +7,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.runBlocking
 
 class WebContentProcessor {
 
@@ -47,21 +48,23 @@ class WebContentProcessor {
                 println("🔗 Обрабатываем изображение: $absoluteUrl")
                 
                 if (imageDownloader.isImageUrl(absoluteUrl)) {
-                    val altText = imgElement.attr("alt").ifBlank { "image" }
+                    val altText = imgElement.attr("alt") // Убираем fallback "image" для правильной работы приоритетов
                     val fileName = generateImageFileName(absoluteUrl, altText, noteName, imageCounter)
                     
                     println("📥 Скачиваем изображение: $fileName")
                     
-                    // Скачиваем изображение
-                    val downloadResult = imageDownloader.downloadImage(absoluteUrl, imagesFolder, fileName, imagesFolder.name)
-                    downloadResult.onSuccess { imageInfo ->
-                        // Заменяем src на локальный путь
-                        imgElement.attr("src", imageInfo.localPath)
-                        println("✅ Изображение скачано: ${imageInfo.fileName}")
-                        imageCounter++
-                    }.onFailure { error ->
-                        println("❌ Ошибка скачивания изображения $absoluteUrl: ${error.message}")
-                        // Оставляем оригинальный URL
+                    // Скачиваем изображение и ждем завершения
+                    runBlocking {
+                        val downloadResult = imageDownloader.downloadImage(absoluteUrl, imagesFolder, fileName, imagesFolder.name)
+                        downloadResult.onSuccess { imageInfo ->
+                            // Заменяем src на локальный путь
+                            imgElement.attr("src", imageInfo.localPath)
+                            println("✅ Изображение скачано: ${imageInfo.fileName}")
+                            imageCounter++
+                        }.onFailure { error ->
+                            println("❌ Ошибка скачивания изображения $absoluteUrl: ${error.message}")
+                            // Оставляем оригинальный URL
+                        }
                     }
                 } else {
                     println("⚠️ URL не является изображением: $absoluteUrl")
@@ -205,22 +208,43 @@ class WebContentProcessor {
     
     // Генерирует имя файла для изображения
     private fun generateImageFileName(imageUrl: String, altText: String, noteName: String? = null, imageCounter: Int = 1): String {
-        val sanitizedAlt = sanitizeImageName(altText)
         val knownExt = setOf("png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "avif", "heic")
         val fromUrl = imageUrl.substringAfterLast('/', imageUrl)
         val ext = fromUrl.substringAfterLast('.', "").lowercase().take(5)
         val safeExt = if (ext in knownExt) ext else "png"
         
-        // Если altText после очистки пустой или слишком короткий, используем fallback
-        val finalName = if (sanitizedAlt.isBlank() || sanitizedAlt.length < 3) {
-            if (noteName != null) {
-                val cleanNoteName = sanitizeImageName(noteName).take(20)
-                "${cleanNoteName}_${imageCounter}"
-            } else {
-                "image_${imageCounter}"
+        // Приоритетная система выбора имени:
+        // 1. altText (если заполнен и не пустой)
+        // 2. Оригинальное имя файла с сервера
+        // 3. Fallback: "(название_заметки)_(number)" для уменьшения дублирования
+        val finalName = when {
+            // 1. Используем altText, если он заполнен и не пустой
+            altText.isNotBlank() && altText.trim().length >= 3 -> {
+                sanitizeImageName(altText.trim()).take(50)
             }
-        } else {
-            sanitizedAlt.take(30)
+            // 2. Используем оригинальное имя файла с сервера
+            fromUrl.isNotBlank() && fromUrl != imageUrl -> {
+                val originalName = fromUrl.substringBeforeLast('.', "")
+                if (originalName.isNotBlank()) {
+                    sanitizeImageName(originalName).take(50)
+                } else {
+                    val cleanNoteName = if (noteName != null) {
+                        sanitizeImageName(noteName).take(20)
+                    } else {
+                        "note"
+                    }
+                    "${cleanNoteName}_${imageCounter}"
+                }
+            }
+            // 3. Fallback: всегда используем название заметки для уменьшения дублирования
+            else -> {
+                val cleanNoteName = if (noteName != null) {
+                    sanitizeImageName(noteName).take(20)
+                } else {
+                    "note"
+                }
+                "${cleanNoteName}_${imageCounter}"
+            }
         }
         
         return "$finalName.$safeExt"
