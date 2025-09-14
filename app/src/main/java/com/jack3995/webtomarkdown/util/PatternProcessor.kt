@@ -22,7 +22,8 @@ class PatternProcessor {
         HabrPattern(),
         PikabuPattern(),
         IxbtPattern(),
-        SkillboxPattern()
+        SkillboxPattern(),
+        DokaPattern()
     )
 
     fun tryExtract(url: String, doc: Document): Element? {
@@ -108,6 +109,26 @@ class PatternProcessor {
         override val domains: List<String> = listOf("skillbox.ru")
         override fun canHandle(url: String): Boolean = try { URI(url).host?.lowercase() == "skillbox.ru" } catch (_: Exception) { false }
         override fun extract(doc: Document, url: String): Element? = doc.selectFirst("div.article-detail-text__setka[data-detail-text]")
+    }
+
+    private class DokaPattern : SitePattern {
+        override val name: String = "Doka"
+        override val domains: List<String> = listOf("doka.guide")
+        override fun canHandle(url: String): Boolean = try { URI(url).host?.lowercase() == "doka.guide" } catch (_: Exception) { false }
+        override fun extract(doc: Document, url: String): Element? {
+            return try {
+                val contentElement = doc.selectFirst("div.article__content-inner.content")
+                if (contentElement != null) {
+                    // Удаляем родительские блоки кнопок копирования
+                    contentElement.select("span.article-heading__copier").remove()
+                    contentElement
+                } else {
+                    null
+                }
+            } catch (_: Exception) {
+                null
+            }
+        }
     }
 }
 

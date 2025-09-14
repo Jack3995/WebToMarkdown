@@ -265,27 +265,36 @@ class FileSaveHandler(private val context: Context, private val contentResolver:
         } else {
             println("ℹ️ Изображения не загружались, сохраняем заметку без них")
             
-            // Сохраняем без изображений
-            saveNote(
-                finalFileName,
-                content,
-                saveLocationOption,
-                onFolderPickerRequest = {
-                    println("💾 Сохранены значения для выбора папки:")
-                    println("   Файл: $finalFileName")
-                    println("   Папка с изображениями: нет")
-                    onFolderPickerRequest()
-                },
-                onSaveResult = { success ->
-                    if (!success) {
-                        println("❗ Ошибка сохранения заметки")
-                    } else {
-                        println("✅ Заметка успешно сохранена")
-                    }
-                    onSaveResult(success)
-                },
-                imagesFolder = null
-            )
+            if (saveLocationOption == SaveLocationOption.ASK_EVERY_TIME) {
+                // Store pending and trigger folder picker
+                println("💾 Сохраняем отложенные данные для ASK_EVERY_TIME (без изображений)")
+                pendingFileName = finalFileName
+                pendingContent = content
+                pendingImagesFolder = null
+                pendingImagesDirName = null
+                println("   Отложенное имя файла: $pendingFileName")
+                println("   Отложенный контент: ${pendingContent?.length} символов")
+                println("   Отложенная папка: нет")
+                println("   Отложенное имя папки изображений: нет")
+                onFolderPickerRequest()
+            } else {
+                // CUSTOM_FOLDER: сохранить сразу
+                saveNote(
+                    finalFileName,
+                    content,
+                    saveLocationOption,
+                    onFolderPickerRequest = onFolderPickerRequest,
+                    onSaveResult = { success ->
+                        if (!success) {
+                            println("❗ Ошибка сохранения заметки")
+                        } else {
+                            println("✅ Заметка успешно сохранена")
+                        }
+                        onSaveResult(success)
+                    },
+                    imagesFolder = null
+                )
+            }
         }
     }
 
