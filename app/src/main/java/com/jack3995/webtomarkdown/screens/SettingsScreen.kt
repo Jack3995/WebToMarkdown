@@ -21,6 +21,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.font.FontWeight
 import androidx.activity.compose.BackHandler
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withStyle
+import androidx.compose.foundation.text.ClickableText
  
 
 /**
@@ -170,7 +176,7 @@ fun SettingsScreen(
                         modifier = Modifier.padding(16.dp)
                     ) {
                         Text(
-                            "Место сохранения заметки:",
+                            "Место сохранения заметки",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
@@ -232,7 +238,7 @@ fun SettingsScreen(
                         modifier = Modifier.padding(16.dp)
                     ) {
                         Text(
-                            "Наименование заметки:",
+                            "Наименование заметки",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
@@ -279,7 +285,7 @@ fun SettingsScreen(
                         modifier = Modifier.padding(16.dp)
                     ) {
                         Text(
-                            "Обработка контента:",
+                            "Обработка контента",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
@@ -315,8 +321,27 @@ fun SettingsScreen(
                                     },
                                     title = { Text("Поддерживаемые сайты") },
                                     text = {
-                                        val listText = if (supportedDomains.isNotEmpty()) supportedDomains.joinToString(", ") else "Пока нет"
-                                        Text(listText)
+                                        Column {
+                                            Text(
+                                                "Приложение по заранее написанному алгоритму под конкретный сайт производит извлечение полезной информации, заблаговременно фильтруя «мусорные» элементы (меню, сайдбар, футер сайта и т.д.)",
+                                                style = MaterialTheme.typography.bodyMedium
+                                            )
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            
+                                            if (supportedDomains.isNotEmpty()) {
+                                                supportedDomains.forEach { domain ->
+                                                    Text(
+                                                        "• $domain",
+                                                        style = MaterialTheme.typography.bodyMedium
+                                                    )
+                                                }
+                                            } else {
+                                                Text(
+                                                    "Пока нет",
+                                                    style = MaterialTheme.typography.bodyMedium
+                                                )
+                                            }
+                                        }
                                     }
                                 )
                             }
@@ -377,7 +402,7 @@ fun SettingsScreen(
                         modifier = Modifier.padding(16.dp)
                     ) {
                         Text(
-                            "Цветовая тема:",
+                            "Цветовая тема",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
@@ -477,14 +502,34 @@ fun SettingsScreen(
                                         )
                                         Spacer(modifier = Modifier.height(8.dp))
                                         
-                                        Text(
-                                            "Разработчик: Олифер Игорь",
-                                            style = MaterialTheme.typography.bodyMedium
+                                        val uriHandler = LocalUriHandler.current
+                                        val annotatedString = buildAnnotatedString {
+                                            withStyle(style = SpanStyle()) {
+                                                append("Обратная связь: ")
+                                            }
+                                            withStyle(
+                                                style = SpanStyle(
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                    textDecoration = TextDecoration.Underline
+                                                )
+                                            ) {
+                                                append("jack3995@mail.ru")
+                                            }
+                                        }
+                                        ClickableText(
+                                            text = annotatedString,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            onClick = { offset ->
+                                                val email = "jack3995@mail.ru"
+                                                uriHandler.openUri("mailto:$email")
+                                            }
                                         )
                                         Spacer(modifier = Modifier.height(8.dp))
+                                        
                                         Text(
-                                            "Обратная связь: jack3995@mail.ru",
-                                            style = MaterialTheme.typography.bodyMedium
+                                            "Ⓒ Copyright 2025",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Medium
                                         )
                                     }
                                 }
