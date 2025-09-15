@@ -51,6 +51,8 @@ fun MainScreen(
                 val clipboardText = clipboard.getText()?.text
                 if (clipboardText != null) {
                     onUrlChange(clipboardText)
+                    // Автозапуск обработки после вставки ссылки
+                    onProcessClick()
                 }
             } catch (_: Exception) {
                 // Ошибку вставки игнорируем без всплывающих уведомлений

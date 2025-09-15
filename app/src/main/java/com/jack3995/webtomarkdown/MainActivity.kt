@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -78,6 +79,9 @@ class MainActivity : ComponentActivity() {
     private var pendingContent by mutableStateOf("")
     private var pendingImagesFolder by mutableStateOf<File?>(null)
 
+    // Флаг автозапуска обработки после получения ссылки извне
+    private var pendingAutoProcess: Boolean = false
+
 
     private fun handleSendIntent(intent: Intent) {
         if (intent.action == Intent.ACTION_SEND && intent.type == "text/plain") {
@@ -85,7 +89,8 @@ class MainActivity : ComponentActivity() {
             if (!sharedText.isNullOrEmpty()) {
                 Log.d("ShareIntent", "Получена ссылка: $sharedText")
                 urlState.value = sharedText.trim()
-                // Можно тут вызвать processUrl() для автоматической обработки ссылки
+                // Отметим, что нужно автообработать ссылку после инициализации UI
+                pendingAutoProcess = true
             }
         }
     }
@@ -129,8 +134,12 @@ class MainActivity : ComponentActivity() {
                     println("💾 MainActivity: Передаем управление FileSaveHandler для сохранения")
                     // Используем отложенные значения, подготовленные в FileSaveHandler
                     fileSaveHandler.onFolderPickedUsePending(uri) { success ->
-                        if (!success) println("❗ MainActivity получил результат: Ошибка сохранения файла через SAF")
-                        else println("✅ MainActivity получил результат: Файл успешно сохранен через SAF")
+                        if (!success) {
+                            println("❗ MainActivity получил результат: Ошибка сохранения файла через SAF")
+                        } else {
+                            println("✅ MainActivity получил результат: Файл успешно сохранен через SAF")
+                            Toast.makeText(this@MainActivity, "Заметка сохранена", Toast.LENGTH_SHORT).show()
+                        }
                     }
                 } else {
                     println("❌ MainActivity: Папка не выбрана")
@@ -253,6 +262,7 @@ class MainActivity : ComponentActivity() {
                             println("❗ MainActivity получил результат: Ошибка сохранения")
                         } else {
                             println("✅ MainActivity получил результат: Успешное сохранение")
+                            Toast.makeText(this@MainActivity, "Заметка сохранена", Toast.LENGTH_SHORT).show()
                         }
                     }
                 )
@@ -261,6 +271,14 @@ class MainActivity : ComponentActivity() {
             LaunchedEffect(Unit) {
                 delay(2000L)
                 _currentScreen = Screen.Main
+            }
+
+            // Автозапуск обработки, если ссылка пришла через Share-интент
+            LaunchedEffect(_urlState.value) {
+                if (pendingAutoProcess && _urlState.value.isNotBlank()) {
+                    pendingAutoProcess = false
+                    processUrl()
+                }
             }
             
             // Обновляем цвета системных баров при изменении темы

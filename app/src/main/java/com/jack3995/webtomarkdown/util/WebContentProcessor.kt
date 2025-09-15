@@ -313,6 +313,10 @@ class WebContentProcessor {
                 append("](")
                 append(url)
                 append(")")
+                // Добавляем отметку времени сохранения
+                val date = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()).format(Date())
+                append("\nСохранено: ")
+                append(date)
             }
             
             Result.success(ProcessResult(markdown, fileName, url, tempImagesFolder))
